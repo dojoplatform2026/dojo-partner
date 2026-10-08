@@ -27,14 +27,13 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen> {
   bool _arrived = false;
   bool _dogReceived = false;
-  double _slideValue = 0;
   bool _updatingBooking = false;
 
-  Future<void> _updateBookingStatus(String status) async {
+  Future<bool> _updateBookingStatus(String status) async {
     final bookingId = widget.bookingId;
 
     if (bookingId == null || bookingId.isEmpty) {
-      return;
+      return true;
     }
 
     try {
@@ -45,8 +44,10 @@ class _NavigationScreenState extends State<NavigationScreen> {
         'status': status,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted) return false;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -55,52 +56,54 @@ class _NavigationScreenState extends State<NavigationScreen> {
           ),
         ),
       );
+
+      return false;
     }
   }
 
   Future<void> _markArrived() async {
-    if (_updatingBooking) return;
+    if (_updatingBooking || _arrived) return;
 
     setState(() {
       _updatingBooking = true;
     });
 
-    await _updateBookingStatus('accepted');
+    final success = await _updateBookingStatus('accepted');
 
     if (!mounted) return;
 
-    setState(() {
-      _arrived = true;
-      _updatingBooking = false;
-    });
+    if (success) {
+      setState(() {
+        _arrived = true;
+        _updatingBooking = false;
+      });
+    } else {
+      setState(() {
+        _updatingBooking = false;
+      });
+    }
   }
 
   Future<void> _markDogReceived() async {
-    if (_updatingBooking) return;
+    if (_updatingBooking || !_arrived || _dogReceived) return;
 
     setState(() {
       _updatingBooking = true;
     });
 
-    await _updateBookingStatus('picked_up');
+    final success = await _updateBookingStatus('picked_up');
 
     if (!mounted) return;
 
-    setState(() {
-      _dogReceived = true;
-      _updatingBooking = false;
-    });
-  }
-
-  void _onSlideChanged(double value) {
-    if (_slideValue >= 0.92) return;
-
-    setState(() {
-      _slideValue = value;
-    });
-
-    if (value >= 0.92) {
-      _startWalk();
+    if (success) {
+      setState(() {
+        _dogReceived = true;
+        _updatingBooking = false;
+      });
+    } else {
+      setState(() {
+        _updatingBooking = false;
+      });
     }
   }
 
@@ -113,9 +116,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
       _updatingBooking = true;
     });
 
-    await _updateBookingStatus('walking');
+    final success = await _updateBookingStatus('walking');
 
     if (!mounted) return;
+
+    if (!success) {
+      setState(() {
+        _updatingBooking = false;
+      });
+      return;
+    }
 
     Navigator.pushReplacement(
       context,
@@ -146,6 +156,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
       ),
       body: Stack(
         children: [
+          // MAP AREA
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -159,6 +170,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
           ),
 
+          // PICKUP INFO
           Positioned(
             top: 20,
             left: 20,
@@ -224,21 +236,28 @@ class _NavigationScreenState extends State<NavigationScreen> {
             ),
           ),
 
+          // BOTTOM ACTION PANEL
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: 20,
+            left: 16,
+            right: 16,
+            bottom: 16,
             child: SafeArea(
               child: Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  16,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: const Color(0xFFEAEAEA),
                   ),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
@@ -259,7 +278,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 ? 'Navigate to the pickup location and mark your arrival.'
                                 : !_dogReceived
                                     ? 'Pickup location reached. Confirm that you received the dog.'
-                                    : '${widget.dogName} received. You can start the walk.',
+                                    : '${widget.dogName} received. Slide to start the walk.',
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -270,9 +289,11 @@ class _NavigationScreenState extends State<NavigationScreen> {
                     ),
                     const SizedBox(height: 14),
 
+                    // ARRIVED BUTTON
                     if (!_arrived)
                       SizedBox(
                         width: double.infinity,
+                        height: 52,
                         child: ElevatedButton(
                           onPressed: _updatingBooking
                               ? null
@@ -292,9 +313,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                                 ),
                         ),
                       )
+
+                    // DOG RECEIVED BUTTON
                     else if (!_dogReceived)
                       SizedBox(
                         width: double.infinity,
+                        height: 52,
                         child: ElevatedButton.icon(
                           onPressed: _updatingBooking
                               ? null
@@ -317,12 +341,12 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           ),
                         ),
                       )
+
+                    // SLIDE TO START
                     else
                       _SlideToStart(
-                        value: _slideValue,
-                        onChanged: _updatingBooking
-                            ? null
-                            : _onSlideChanged,
+                        enabled: !_updatingBooking,
+                        onCompleted: _startWalk,
                       ),
                   ],
                 ),
@@ -335,61 +359,170 @@ class _NavigationScreenState extends State<NavigationScreen> {
   }
 }
 
-class _SlideToStart extends StatelessWidget {
+class _SlideToStart extends StatefulWidget {
   const _SlideToStart({
-    required this.value,
-    required this.onChanged,
+    required this.enabled,
+    required this.onCompleted,
   });
 
-  final double value;
-  final ValueChanged<double>? onChanged;
+  final bool enabled;
+  final VoidCallback onCompleted;
+
+  @override
+  State<_SlideToStart> createState() => _SlideToStartState();
+}
+
+class _SlideToStartState extends State<_SlideToStart> {
+  double _value = 0;
+
+  bool _completed = false;
+
+  void _updateValue(double value) {
+    if (!widget.enabled || _completed) return;
+
+    final safeValue = value.clamp(0.0, 1.0);
+
+    setState(() {
+      _value = safeValue;
+    });
+
+    if (safeValue >= 0.92) {
+      _completed = true;
+
+      setState(() {
+        _value = 1.0;
+      });
+
+      widget.onCompleted();
+    }
+  }
+
+  void _resetSlider() {
+    if (!widget.enabled || _completed) return;
+
+    setState(() {
+      _value = 0;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 58,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF1E8),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                minThumbSeparation: 0,
-                trackHeight: 58,
-                activeTrackColor:
-                    DojoPartnerTheme.primaryOrange,
-                inactiveTrackColor:
-                    const Color(0xFFFFE0CC),
-                thumbColor: Colors.white,
-                overlayColor: Colors.transparent,
-                thumbShape:
-                    const RoundSliderThumbShape(
-                  enabledThumbRadius: 25,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double height = 60;
+        const double thumbSize = 52;
+
+        final double availableWidth =
+            constraints.maxWidth - thumbSize;
+
+        final double thumbLeft =
+            availableWidth * _value;
+
+        return GestureDetector(
+          onHorizontalDragUpdate: widget.enabled
+              ? (details) {
+                  final double nextValue =
+                      _value +
+                          details.delta.dx /
+                              availableWidth;
+
+                  _updateValue(nextValue);
+                }
+              : null,
+          onHorizontalDragEnd: widget.enabled
+              ? (_) {
+                  if (_value < 0.92) {
+                    _resetSlider();
+                  }
+                }
+              : null,
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1E8),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFFFD8BF),
+              ),
+            ),
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                // ORANGE PROGRESS
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 80),
+                  width: thumbLeft + thumbSize,
+                  height: height,
+                  decoration: BoxDecoration(
+                    color: DojoPartnerTheme.primaryOrange,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-              ),
-              child: Slider(
-                value: value,
-                min: 0,
-                max: 1,
-                onChanged: onChanged,
-              ),
+
+                // CENTER TEXT
+                Center(
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 100),
+                    opacity: _value > 0.35 ? 0.0 : 1.0,
+                    child: const Text(
+                      'Slide to Start Walk',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color:
+                            DojoPartnerTheme.primaryOrange,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ARROW TEXT
+                Positioned(
+                  right: 18,
+                  child: AnimatedOpacity(
+                    duration:
+                        const Duration(milliseconds: 100),
+                    opacity: _value > 0.35 ? 0.0 : 1.0,
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color:
+                          DojoPartnerTheme.primaryOrange,
+                    ),
+                  ),
+                ),
+
+                // SLIDER THUMB
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 60),
+                  left: thumbLeft,
+                  top: 4,
+                  child: Container(
+                    width: thumbSize,
+                    height: thumbSize,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color:
+                            DojoPartnerTheme.primaryOrange,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      _completed
+                          ? Icons.check
+                          : Icons.arrow_forward_rounded,
+                      color:
+                          DojoPartnerTheme.primaryOrange,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(right: 14),
-            child: Text(
-              'Slide to Start',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: DojoPartnerTheme.primaryOrange,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
