@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -36,6 +38,10 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
   int _poopCount = 0;
 
   Position? _lastPosition;
+  Position? _startPosition;
+
+  DateTime? _startedAt;
+
   final List<Position> _route = [];
 
   bool _isStarting = true;
@@ -78,6 +84,8 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     if (!mounted) return;
 
+    _startedAt = DateTime.now();
+
     setState(() {
       _isStarting = false;
       _locationTracking = true;
@@ -101,6 +109,8 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       ),
     ).listen(
       (position) {
+        _startPosition ??= position;
+
         if (_lastPosition != null) {
           final meters = Geolocator.distanceBetween(
             _lastPosition!.latitude,
@@ -274,23 +284,99 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     _timer?.cancel();
     await _positionSubscription?.cancel();
 
-    if (!mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WalkSummaryScreen(
-          dogName: widget.dogName,
-          walkType: 'Regular Walk',
-          scheduledTime: widget.time,
-          durationSeconds: _seconds,
-          distanceKm: _distanceMeters / 1000,
-          location: widget.location,
-          peeCount: _peeCount,
-          poopCount: _poopCount,
+    if (user == null) {
+      if (!mounted) return;
+
+      setState(() {
+        _isEnding = false;
+        _locationTracking = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to identify partner account.',
+          ),
         ),
-      ),
-    );
+      );
+
+      return;
+    }
+
+    try {
+      final startedAt = _startedAt ?? DateTime.now();
+      final endedAt = DateTime.now();
+
+      final walkData = <String, dynamic>{
+        'walkerId': user.uid,
+        'dogName': widget.dogName,
+        'walkType': 'Regular Walk',
+        'scheduledTime': widget.time,
+        'duration': _seconds,
+        'distance': _distanceMeters / 1000,
+        'location': widget.location,
+        'peeCount': _peeCount,
+        'poopCount': _poopCount,
+        'startedAt': Timestamp.fromDate(startedAt),
+        'endedAt': Timestamp.fromDate(endedAt),
+        'status': 'completed',
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      if (_startPosition != null) {
+        walkData['startLocation'] = GeoPoint(
+          _startPosition!.latitude,
+          _startPosition!.longitude,
+        );
+      }
+
+      if (_lastPosition != null) {
+        walkData['endLocation'] = GeoPoint(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+        );
+      }
+
+      await FirebaseFirestore.instance
+          .collection('walks')
+          .add(walkData);
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => WalkSummaryScreen(
+            dogName: widget.dogName,
+            walkType: 'Regular Walk',
+            scheduledTime: widget.time,
+            durationSeconds: _seconds,
+            distanceKm: _distanceMeters / 1000,
+            location: widget.location,
+            peeCount: _peeCount,
+            poopCount: _poopCount,
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _isEnding = false;
+        _locationTracking = true;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Walk could not be saved. Please try again.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _confirmEndWalk() async {
