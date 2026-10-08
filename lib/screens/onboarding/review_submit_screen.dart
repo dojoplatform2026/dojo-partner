@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
-import '../home/partner_home_screen.dart';
 
 class ReviewSubmitScreen extends StatefulWidget {
   const ReviewSubmitScreen({super.key});
