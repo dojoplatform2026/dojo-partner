@@ -705,10 +705,11 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
     final totalWalks = _todayBookings.length;
 
+    // Changed only: sum -> total
     final totalMinutes = _todayBookings.fold<int>(
       0,
-      (sum, booking) =>
-          sum + _durationMinutes(booking),
+      (total, booking) =>
+          total + _durationMinutes(booking),
     );
 
     final totalHours = totalMinutes / 60;
@@ -778,7 +779,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                     ),
                     const SizedBox(height: 22),
 
-                    // PARTNER CARD
                     Container(
                       padding:
                           const EdgeInsets.all(18),
@@ -888,7 +888,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       ),
                     ),
 
-                    // REVIEW PROMPT
                     if (_showReviewPrompt &&
                         _reviewDogName != null) ...[
                       const SizedBox(height: 16),
@@ -900,7 +899,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       ),
                     ],
 
-                    // SETUP
                     if (!_bankAdded ||
                         !_scheduleSet) ...[
                       const SizedBox(height: 24),
@@ -953,7 +951,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                     const SizedBox(height: 24),
 
-                    // WORK STATUS
                     Container(
                       padding:
                           const EdgeInsets.all(18),
@@ -998,7 +995,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                     const SizedBox(height: 24),
 
-                    // TODAY OVERVIEW
                     const Text(
                       "TODAY'S OVERVIEW",
                       style: TextStyle(
@@ -1038,7 +1034,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                     const SizedBox(height: 24),
 
-                    // TODAY'S WORK
                     const Text(
                       "TODAY'S WORK",
                       style: TextStyle(
@@ -1095,7 +1090,6 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                     const SizedBox(height: 12),
 
-                    // SUPPORT
                     Material(
                       color: Colors.white,
                       borderRadius:
