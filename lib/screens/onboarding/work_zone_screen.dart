@@ -268,21 +268,33 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
                                   ],
                                 ),
                               ),
-                              Radio<String>(
-                                value: doc.id,
-                                groupValue: _selectedZoneId,
-                                activeColor:
-                                    DojoPartnerTheme.primaryOrange,
-                                onChanged: _isSaving
-                                    ? null
-                                    : (value) {
-                                        if (value == null) return;
-
-                                        setState(() {
-                                          _selectedZoneId = value;
-                                          _selectedZoneName = name;
-                                        });
-                                      },
+                              const SizedBox(width: 12),
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? DojoPartnerTheme.primaryOrange
+                                        : const Color(0xFFBDBDBD),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: isSelected
+                                    ? Center(
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration:
+                                              const BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: DojoPartnerTheme
+                                                .primaryOrange,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
                               ),
                             ],
                           ),
