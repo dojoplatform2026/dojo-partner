@@ -6,6 +6,7 @@ import '../../theme.dart';
 import '../onboarding/bank_details_screen.dart';
 import 'earnings_screen.dart';
 import 'profile_screen.dart';
+import 'review_bottom_sheet.dart';
 import 'schedule_screen.dart';
 import 'walk_details_screen.dart';
 import 'working_schedule_screen.dart';
@@ -14,13 +15,16 @@ class PartnerHomeScreen extends StatefulWidget {
   const PartnerHomeScreen({super.key});
 
   @override
-  State<PartnerHomeScreen> createState() => _PartnerHomeScreenState();
+  State<PartnerHomeScreen> createState() =>
+      _PartnerHomeScreenState();
 }
 
-class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
+class _PartnerHomeScreenState
+    extends State<PartnerHomeScreen> {
   bool _isLoading = true;
   bool _bankAdded = false;
   bool _scheduleSet = false;
+  bool _showReviewPrompt = true;
 
   String _fullName = 'Partner';
   String _partnerId = 'DOJO-W-00124';
@@ -52,7 +56,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
       if (!mounted) return;
 
       if (doc.exists) {
-        final data = doc.data() ?? <String, dynamic>{};
+        final data =
+            doc.data() ?? <String, dynamic>{};
 
         final bank = data['bank'];
         final schedule = data['workingSchedule'];
@@ -72,11 +77,17 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
           _bankAdded = bank is Map &&
               bank['status'] != null &&
-              bank['status'].toString().trim().isNotEmpty;
+              bank['status']
+                  .toString()
+                  .trim()
+                  .isNotEmpty;
 
           _scheduleSet = schedule is Map &&
               schedule['status'] != null &&
-              schedule['status'].toString().trim().isNotEmpty;
+              schedule['status']
+                  .toString()
+                  .trim()
+                  .isNotEmpty;
 
           _isLoading = false;
         });
@@ -116,13 +127,17 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     );
   }
 
-  void _openTab(BuildContext context, int index) {
+  void _openTab(
+    BuildContext context,
+    int index,
+  ) {
     switch (index) {
       case 1:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const ScheduleScreen(),
+            builder: (_) =>
+                const ScheduleScreen(),
           ),
         );
         break;
@@ -131,7 +146,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const EarningsScreen(),
+            builder: (_) =>
+                const EarningsScreen(),
           ),
         );
         break;
@@ -140,7 +156,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const ProfileScreen(),
+            builder: (_) =>
+                const ProfileScreen(),
           ),
         );
         break;
@@ -151,7 +168,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const BankDetailsScreen(),
+        builder: (_) =>
+            const BankDetailsScreen(),
       ),
     );
 
@@ -164,7 +182,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const WorkingScheduleScreen(),
+        builder: (_) =>
+            const WorkingScheduleScreen(),
       ),
     );
 
@@ -173,9 +192,32 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     await _loadPartnerData();
   }
 
+  Future<void> _showReviewSheet() async {
+    final result =
+        await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) {
+        return const ReviewBottomSheet(
+          dogName: 'Bruno',
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (result == true || result == false) {
+      setState(() {
+        _showReviewPrompt = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final firstName = _fullName.trim().split(' ').first;
+    final firstName =
+        _fullName.trim().split(' ').first;
 
     return Scaffold(
       appBar: AppBar(
@@ -198,15 +240,19 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         child: _isLoading
             ? const Center(
                 child: CircularProgressIndicator(
-                  color: DojoPartnerTheme.primaryOrange,
+                  color:
+                      DojoPartnerTheme.primaryOrange,
                 ),
               )
             : RefreshIndicator(
-                color: DojoPartnerTheme.primaryOrange,
+                color:
+                    DojoPartnerTheme.primaryOrange,
                 onRefresh: _loadPartnerData,
                 child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(
+                  physics:
+                      const AlwaysScrollableScrollPhysics(),
+                  padding:
+                      const EdgeInsets.fromLTRB(
                     20,
                     8,
                     20,
@@ -218,27 +264,34 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       style: const TextStyle(
                         fontSize: 25,
                         fontWeight: FontWeight.w800,
-                        color: DojoPartnerTheme.textPrimary,
+                        color:
+                            DojoPartnerTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       "Here's your work for today.",
                       style: TextStyle(
-                        color: DojoPartnerTheme.textSecondary,
+                        color:
+                            DojoPartnerTheme
+                                .textSecondary,
                         fontSize: 14,
                       ),
                     ),
+
                     const SizedBox(height: 22),
 
                     // PARTNER CARD
                     Container(
-                      padding: const EdgeInsets.all(18),
+                      padding:
+                          const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius:
+                            BorderRadius.circular(18),
                         border: Border.all(
-                          color: const Color(0xFFEAEAEA),
+                          color:
+                              const Color(0xFFEAEAEA),
                         ),
                       ),
                       child: Row(
@@ -246,20 +299,31 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                           Container(
                             width: 52,
                             height: 52,
-                            decoration: BoxDecoration(
-                              color: DojoPartnerTheme.primaryOrange
-                                  .withValues(alpha: 0.10),
+                            decoration:
+                                BoxDecoration(
+                              color:
+                                  DojoPartnerTheme
+                                      .primaryOrange
+                                      .withValues(
+                                    alpha: 0.10,
+                                  ),
                               shape: BoxShape.circle,
                             ),
-                            alignment: Alignment.center,
+                            alignment:
+                                Alignment.center,
                             child: Text(
                               firstName.isNotEmpty
-                                  ? firstName[0].toUpperCase()
+                                  ? firstName[0]
+                                      .toUpperCase()
                                   : 'P',
-                              style: const TextStyle(
+                              style:
+                                  const TextStyle(
                                 fontSize: 21,
-                                fontWeight: FontWeight.w800,
-                                color: DojoPartnerTheme.primaryOrange,
+                                fontWeight:
+                                    FontWeight.w800,
+                                color:
+                                    DojoPartnerTheme
+                                        .primaryOrange,
                               ),
                             ),
                           ),
@@ -267,41 +331,54 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                           Expanded(
                             child: Column(
                               crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                                  CrossAxisAlignment
+                                      .start,
                               children: [
                                 Text(
                                   _fullName,
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     fontSize: 17,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight:
+                                        FontWeight.w800,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(
+                                    height: 4),
                                 const Row(
                                   children: [
                                     Icon(
-                                      Icons.verified_rounded,
+                                      Icons
+                                          .verified_rounded,
                                       size: 16,
-                                      color: Colors.green,
+                                      color:
+                                          Colors.green,
                                     ),
-                                    SizedBox(width: 5),
+                                    SizedBox(
+                                        width: 5),
                                     Text(
                                       'Verified Partner',
-                                      style: TextStyle(
+                                      style:
+                                          TextStyle(
                                         fontSize: 13,
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
+                                        color:
+                                            Colors.green,
+                                        fontWeight:
+                                            FontWeight.w600,
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(
+                                    height: 8),
                                 Text(
                                   'Partner ID  •  $_partnerId',
-                                  style: const TextStyle(
+                                  style:
+                                      const TextStyle(
                                     fontSize: 12,
                                     color:
-                                        DojoPartnerTheme.textSecondary,
+                                        DojoPartnerTheme
+                                            .textSecondary,
                                   ),
                                 ),
                               ],
@@ -311,41 +388,70 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       ),
                     ),
 
+                    // REVIEW PROMPT
+                    if (_showReviewPrompt) ...[
+                      const SizedBox(height: 16),
+                      _ReviewPromptCard(
+                        dogName: 'Bruno',
+                        onRate:
+                            _showReviewSheet,
+                        onSkip: () {
+                          setState(() {
+                            _showReviewPrompt =
+                                false;
+                          });
+                        },
+                      ),
+                    ],
+
                     // SETUP SECTION
-                    if (!_bankAdded || !_scheduleSet) ...[
+                    if (!_bankAdded ||
+                        !_scheduleSet) ...[
                       const SizedBox(height: 24),
                       const Text(
                         'COMPLETE YOUR SETUP',
                         style: TextStyle(
                           fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                          fontWeight:
+                              FontWeight.w800,
                           letterSpacing: 0.8,
-                          color: DojoPartnerTheme.textSecondary,
+                          color:
+                              DojoPartnerTheme
+                                  .textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
 
                       if (!_bankAdded)
                         _SetupCard(
-                          icon: Icons.account_balance_outlined,
-                          title: 'Add Bank Account',
+                          icon: Icons
+                              .account_balance_outlined,
+                          title:
+                              'Add Bank Account',
                           description:
                               'Add your bank account to receive your earnings.',
-                          buttonText: 'Add Bank Account',
-                          onTap: _openBankDetails,
+                          buttonText:
+                              'Add Bank Account',
+                          onTap:
+                              _openBankDetails,
                         ),
 
-                      if (!_bankAdded && !_scheduleSet)
+                      if (!_bankAdded &&
+                          !_scheduleSet)
                         const SizedBox(height: 12),
 
                       if (!_scheduleSet)
                         _SetupCard(
-                          icon: Icons.calendar_month_outlined,
-                          title: 'Set Working Schedule',
+                          icon: Icons
+                              .calendar_month_outlined,
+                          title:
+                              'Set Working Schedule',
                           description:
                               'Set your working days and regular walk timings.',
-                          buttonText: 'Set Schedule',
-                          onTap: _openWorkingSchedule,
+                          buttonText:
+                              'Set Schedule',
+                          onTap:
+                              _openWorkingSchedule,
                         ),
                     ],
 
@@ -353,12 +459,15 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                     // WORK STATUS
                     Container(
-                      padding: const EdgeInsets.all(18),
+                      padding:
+                          const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius:
+                            BorderRadius.circular(16),
                         border: Border.all(
-                          color: const Color(0xFFEAEAEA),
+                          color:
+                              const Color(0xFFEAEAEA),
                         ),
                       ),
                       child: const Row(
@@ -374,14 +483,17 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               'Working',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight: FontWeight.w700,
+                                fontWeight:
+                                    FontWeight.w700,
                               ),
                             ),
                           ),
                           Text(
                             'Today',
                             style: TextStyle(
-                              color: DojoPartnerTheme.textSecondary,
+                              color:
+                                  DojoPartnerTheme
+                                      .textSecondary,
                             ),
                           ),
                         ],
@@ -395,9 +507,12 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       "TODAY'S OVERVIEW",
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        fontWeight:
+                            FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: DojoPartnerTheme.textSecondary,
+                        color:
+                            DojoPartnerTheme
+                                .textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -406,7 +521,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       children: [
                         Expanded(
                           child: _OverviewCard(
-                            icon: Icons.directions_walk_outlined,
+                            icon: Icons
+                                .directions_walk_outlined,
                             title: 'Walks',
                             value: '2',
                           ),
@@ -429,9 +545,12 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       "TODAY'S WORK",
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                        fontWeight:
+                            FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: DojoPartnerTheme.textSecondary,
+                        color:
+                            DojoPartnerTheme
+                                .textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -479,16 +598,26 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                     // SUPPORT
                     Material(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius:
+                          BorderRadius.circular(16),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
                         onTap: () {},
+                        borderRadius:
+                            BorderRadius.circular(16),
                         child: Container(
-                          padding: const EdgeInsets.all(18),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
+                          padding:
+                              const EdgeInsets.all(18),
+                          decoration:
+                              BoxDecoration(
+                            borderRadius:
+                                BorderRadius.circular(
+                              16,
+                            ),
                             border: Border.all(
-                              color: const Color(0xFFEAEAEA),
+                              color:
+                                  const Color(
+                                0xFFEAEAEA,
+                              ),
                             ),
                           ),
                           child: Row(
@@ -496,38 +625,55 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               Container(
                                 width: 44,
                                 height: 44,
-                                decoration: BoxDecoration(
-                                  color: DojoPartnerTheme.primaryOrange
-                                      .withValues(alpha: 0.10),
-                                  borderRadius:
-                                      BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.support_agent_outlined,
+                                decoration:
+                                    BoxDecoration(
                                   color:
-                                      DojoPartnerTheme.primaryOrange,
+                                      DojoPartnerTheme
+                                          .primaryOrange
+                                          .withValues(
+                                    alpha: 0.10,
+                                  ),
+                                  borderRadius:
+                                      BorderRadius
+                                          .circular(12),
+                                ),
+                                child:
+                                    const Icon(
+                                  Icons
+                                      .support_agent_outlined,
+                                  color:
+                                      DojoPartnerTheme
+                                          .primaryOrange,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(
+                                  width: 12),
                               const Expanded(
                                 child: Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                      CrossAxisAlignment
+                                          .start,
                                   children: [
                                     Text(
                                       'Need a day off?',
-                                      style: TextStyle(
+                                      style:
+                                          TextStyle(
                                         fontSize: 15,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight:
+                                            FontWeight
+                                                .w800,
                                       ),
                                     ),
-                                    SizedBox(height: 4),
+                                    SizedBox(
+                                        height: 4),
                                     Text(
                                       'Submit a leave request to DOJO.',
-                                      style: TextStyle(
+                                      style:
+                                          TextStyle(
                                         fontSize: 13,
                                         color:
-                                            DojoPartnerTheme.textSecondary,
+                                            DojoPartnerTheme
+                                                .textSecondary,
                                       ),
                                     ),
                                   ],
@@ -535,7 +681,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               ),
                               const Icon(
                                 Icons.chevron_right,
-                                color: DojoPartnerTheme.textSecondary,
+                                color:
+                                    DojoPartnerTheme
+                                        .textSecondary,
                               ),
                             ],
                           ),
@@ -546,30 +694,49 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                 ),
               ),
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar:
+          NavigationBar(
         selectedIndex: 0,
-        onDestinationSelected: (index) {
+        onDestinationSelected:
+            (index) {
           _openTab(context, index);
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
+            icon: Icon(
+              Icons.home_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.home,
+            ),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
+            icon: Icon(
+              Icons.calendar_month_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.calendar_month,
+            ),
             label: 'Schedule',
           ),
           NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
+            icon: Icon(
+              Icons
+                  .account_balance_wallet_outlined,
+            ),
+            selectedIcon: Icon(
+              Icons.account_balance_wallet,
+            ),
             label: 'Earnings',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
+            icon: Icon(
+              Icons.person_outline,
+            ),
+            selectedIcon: Icon(
+              Icons.person,
+            ),
             label: 'Profile',
           ),
         ],
@@ -578,7 +745,139 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
   }
 }
 
-class _SetupCard extends StatelessWidget {
+class _ReviewPromptCard
+    extends StatelessWidget {
+  const _ReviewPromptCard({
+    required this.dogName,
+    required this.onRate,
+    required this.onSkip,
+  });
+
+  final String dogName;
+  final VoidCallback onRate;
+  final VoidCallback onSkip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding:
+          const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF9F4),
+        borderRadius:
+            BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFFE1C7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration:
+                    BoxDecoration(
+                  color: DojoPartnerTheme
+                      .primaryOrange
+                      .withValues(
+                    alpha: 0.10,
+                  ),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.star_rounded,
+                  color:
+                      DojoPartnerTheme
+                          .primaryOrange,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'How was the walk with $dogName?',
+                  style:
+                      const TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.w800,
+                    color:
+                        DojoPartnerTheme
+                            .textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Your feedback helps DOJO improve.',
+            style: TextStyle(
+              fontSize: 13,
+              color:
+                  DojoPartnerTheme
+                      .textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 42,
+                  child:
+                      ElevatedButton.icon(
+                    onPressed: onRate,
+                    icon: const Icon(
+                      Icons.star_rounded,
+                      size: 18,
+                    ),
+                    label:
+                        const Text(
+                      'Rate Walk',
+                    ),
+                    style:
+                        ElevatedButton
+                            .styleFrom(
+                      minimumSize:
+                          Size.zero,
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                height: 42,
+                child: TextButton(
+                  onPressed: onSkip,
+                  style:
+                      TextButton.styleFrom(
+                    foregroundColor:
+                        DojoPartnerTheme
+                            .textSecondary,
+                  ),
+                  child:
+                      const Text('Skip'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupCard
+    extends StatelessWidget {
   const _SetupCard({
     required this.icon,
     required this.title,
@@ -596,71 +895,105 @@ class _SetupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding:
+          const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF9F4),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(16),
         border: Border.all(
           color: const Color(0xFFFFE1C7),
         ),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           Container(
             width: 44,
             height: 44,
-            decoration: BoxDecoration(
-              color: DojoPartnerTheme.primaryOrange
-                  .withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(12),
+            decoration:
+                BoxDecoration(
+              color:
+                  DojoPartnerTheme
+                      .primaryOrange
+                      .withValues(
+                alpha: 0.10,
+              ),
+              borderRadius:
+                  BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color: DojoPartnerTheme.primaryOrange,
+              color:
+                  DojoPartnerTheme
+                      .primaryOrange,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: DojoPartnerTheme.textPrimary,
+                    fontWeight:
+                        FontWeight.w800,
+                    color:
+                        DojoPartnerTheme
+                            .textPrimary,
                   ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   description,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 13,
                     height: 1.35,
-                    color: DojoPartnerTheme.textSecondary,
+                    color:
+                        DojoPartnerTheme
+                            .textSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
                 SizedBox(
                   height: 40,
-                  child: OutlinedButton(
+                  child:
+                      OutlinedButton(
                     onPressed: onTap,
-                    style: OutlinedButton.styleFrom(
+                    style:
+                        OutlinedButton
+                            .styleFrom(
                       foregroundColor:
-                          DojoPartnerTheme.primaryOrange,
-                      side: const BorderSide(
-                        color: DojoPartnerTheme.primaryOrange,
+                          DojoPartnerTheme
+                              .primaryOrange,
+                      side:
+                          const BorderSide(
+                        color:
+                            DojoPartnerTheme
+                                .primaryOrange,
                       ),
-                      padding: const EdgeInsets.symmetric(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
                         horizontal: 14,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          10,
+                        ),
                       ),
                     ),
-                    child: Text(buttonText),
+                    child:
+                        Text(buttonText),
                   ),
                 ),
               ],
@@ -672,7 +1005,8 @@ class _SetupCard extends StatelessWidget {
   }
 }
 
-class _OverviewCard extends StatelessWidget {
+class _OverviewCard
+    extends StatelessWidget {
   const _OverviewCard({
     required this.icon,
     required this.title,
@@ -686,38 +1020,49 @@ class _OverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding:
+          const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(16),
         border: Border.all(
-          color: const Color(0xFFEAEAEA),
+          color:
+              const Color(0xFFEAEAEA),
         ),
       ),
       child: Row(
         children: [
           Icon(
             icon,
-            color: DojoPartnerTheme.primaryOrange,
+            color:
+                DojoPartnerTheme
+                    .primaryOrange,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   value,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 19,
-                    fontWeight: FontWeight.w800,
+                    fontWeight:
+                        FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 12,
-                    color: DojoPartnerTheme.textSecondary,
+                    color:
+                        DojoPartnerTheme
+                            .textSecondary,
                   ),
                 ),
               ],
@@ -729,7 +1074,8 @@ class _OverviewCard extends StatelessWidget {
   }
 }
 
-class _WalkCard extends StatelessWidget {
+class _WalkCard
+    extends StatelessWidget {
   const _WalkCard({
     required this.time,
     required this.dogName,
@@ -750,27 +1096,38 @@ class _WalkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius:
+          BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius:
+            BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+          padding:
+              const EdgeInsets.all(16),
+          decoration:
+              BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(16),
             border: Border.all(
-              color: const Color(0xFFEAEAEA),
+              color:
+                  const Color(0xFFEAEAEA),
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
             children: [
               Text(
                 time,
-                style: const TextStyle(
+                style:
+                    const TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: DojoPartnerTheme.primaryOrange,
+                  fontWeight:
+                      FontWeight.w800,
+                  color:
+                      DojoPartnerTheme
+                          .primaryOrange,
                 ),
               ),
               const SizedBox(height: 12),
@@ -778,35 +1135,47 @@ class _WalkCard extends StatelessWidget {
                 children: [
                   const CircleAvatar(
                     radius: 24,
-                    child: Icon(Icons.pets),
+                    child:
+                        Icon(Icons.pets),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(
+                      width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          CrossAxisAlignment
+                              .start,
                       children: [
                         Text(
                           dogName,
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             fontSize: 17,
-                            fontWeight: FontWeight.w800,
+                            fontWeight:
+                                FontWeight
+                                    .w800,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(
+                            height: 4),
                         Text(
                           '$type • $duration',
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             color:
-                                DojoPartnerTheme.textSecondary,
+                                DojoPartnerTheme
+                                    .textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(
+                            height: 3),
                         Text(
                           location,
-                          style: const TextStyle(
+                          style:
+                              const TextStyle(
                             color:
-                                DojoPartnerTheme.textSecondary,
+                                DojoPartnerTheme
+                                    .textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -815,7 +1184,9 @@ class _WalkCard extends StatelessWidget {
                   ),
                   const Icon(
                     Icons.chevron_right,
-                    color: DojoPartnerTheme.textSecondary,
+                    color:
+                        DojoPartnerTheme
+                            .textSecondary,
                   ),
                 ],
               ),
