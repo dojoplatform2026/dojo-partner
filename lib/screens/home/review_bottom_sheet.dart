@@ -2,6 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 
+class ReviewResult {
+  const ReviewResult({
+    required this.submitted,
+    required this.rating,
+    required this.note,
+  });
+
+  final bool submitted;
+  final int rating;
+  final String note;
+}
+
 class ReviewBottomSheet extends StatefulWidget {
   const ReviewBottomSheet({
     super.key,
@@ -37,11 +49,23 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
       return;
     }
 
-    Navigator.pop(context, true);
+    Navigator.pop(
+      context,
+      ReviewResult(
+        submitted: true,
+        rating: _rating,
+        note: _noteController.text.trim(),
+      ),
+    );
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Thanks for your feedback!'),
+  void _skipReview() {
+    Navigator.pop(
+      context,
+      const ReviewResult(
+        submitted: false,
+        rating: 0,
+        note: '',
       ),
     );
   }
@@ -71,8 +95,7 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
@@ -80,8 +103,7 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: const Color(0xFFD8D8D8),
-                    borderRadius:
-                        BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
@@ -111,14 +133,12 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                     ),
                     child: const Icon(
                       Icons.pets,
-                      color:
-                          DojoPartnerTheme.primaryOrange,
+                      color: DojoPartnerTheme.primaryOrange,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.dogName,
@@ -132,8 +152,7 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                         'Regular Walk',
                         style: TextStyle(
                           fontSize: 13,
-                          color:
-                              DojoPartnerTheme.textSecondary,
+                          color: DojoPartnerTheme.textSecondary,
                         ),
                       ),
                     ],
@@ -156,14 +175,12 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
               const SizedBox(height: 12),
 
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
                   5,
                   (index) {
                     final starNumber = index + 1;
-                    final selected =
-                        starNumber <= _rating;
+                    final selected = starNumber <= _rating;
 
                     return IconButton(
                       onPressed: () {
@@ -172,12 +189,10 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                         });
                       },
                       iconSize: 38,
-                      padding:
-                          const EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 3,
                       ),
-                      constraints:
-                          const BoxConstraints(
+                      constraints: const BoxConstraints(
                         minWidth: 48,
                         minHeight: 48,
                       ),
@@ -186,8 +201,7 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                             ? Icons.star_rounded
                             : Icons.star_border_rounded,
                         color: selected
-                            ? DojoPartnerTheme
-                                .primaryOrange
+                            ? DojoPartnerTheme.primaryOrange
                             : const Color(0xFFBDBDBD),
                       ),
                     );
@@ -211,11 +225,9 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
                 controller: _noteController,
                 maxLines: 3,
                 maxLength: 300,
-                textInputAction:
-                    TextInputAction.newline,
+                textInputAction: TextInputAction.newline,
                 decoration: const InputDecoration(
-                  hintText:
-                      'Tell us about the walk...',
+                  hintText: 'Tell us about the walk...',
                   counterText: '',
                 ),
               ),
@@ -237,14 +249,11 @@ class _ReviewBottomSheetState extends State<ReviewBottomSheet> {
 
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.pop(context, false);
-                  },
+                  onPressed: _skipReview,
                   child: const Text(
                     'Skip',
                     style: TextStyle(
-                      color:
-                          DojoPartnerTheme.textSecondary,
+                      color: DojoPartnerTheme.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
