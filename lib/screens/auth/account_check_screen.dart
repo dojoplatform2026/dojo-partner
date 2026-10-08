@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 import '../home/partner_home_screen.dart';
+import '../onboarding/personal_details_screen.dart';
 
 class AccountCheckScreen extends StatefulWidget {
   const AccountCheckScreen({
@@ -46,12 +47,14 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
 
       if (!mounted) return;
 
+      // New Walker
       if (!walkerDoc.exists) {
-        setState(() {
-          _message = 'New Walker account detected.';
-        });
-
-        _showNewWalkerMessage();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const PersonalDetailsScreen(),
+          ),
+        );
         return;
       }
 
@@ -61,6 +64,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
       final isActive = data['isActive'] == true;
       final isApproved = data['isApproved'] == true;
 
+      // Approved Partner
       if (status == 'approved' && isActive && isApproved) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -72,6 +76,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
+      // Under Review
       if (status == 'pending' || status == 'under_review') {
         setState(() {
           _message = 'Your application is under review.';
@@ -79,6 +84,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
+      // Correction Required
       if (status == 'correction_required') {
         setState(() {
           _message = 'Some information needs correction.';
@@ -86,6 +92,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
+      // Suspended
       if (status == 'suspended') {
         setState(() {
           _message = 'Your DOJO Partner account is suspended.';
@@ -93,6 +100,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
+      // Rejected
       if (status == 'rejected') {
         setState(() {
           _message = 'Your Partner application was not approved.';
@@ -100,6 +108,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
+      // Left / Inactive
       if (status == 'left') {
         setState(() {
           _message = 'This Partner account is inactive.';
@@ -129,16 +138,6 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         _message = 'Something went wrong. Please try again.';
       });
     }
-  }
-
-  void _showNewWalkerMessage() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'New Walker account detected. Onboarding will be available next.',
-        ),
-      ),
-    );
   }
 
   @override
