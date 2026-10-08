@@ -4,10 +4,11 @@ import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 import '../onboarding/bank_details_screen.dart';
-import 'walk_details_screen.dart';
-import 'schedule_screen.dart';
 import 'earnings_screen.dart';
 import 'profile_screen.dart';
+import 'schedule_screen.dart';
+import 'walk_details_screen.dart';
+import 'working_schedule_screen.dart';
 
 class PartnerHomeScreen extends StatefulWidget {
   const PartnerHomeScreen({super.key});
@@ -159,14 +160,17 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     await _loadPartnerData();
   }
 
-  void _openWorkingSchedule() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Working Schedule setup will be available here.',
-        ),
+  Future<void> _openWorkingSchedule() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const WorkingScheduleScreen(),
       ),
     );
+
+    if (!mounted) return;
+
+    await _loadPartnerData();
   }
 
   @override
@@ -201,8 +205,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                 color: DojoPartnerTheme.primaryOrange,
                 onRefresh: _loadPartnerData,
                 child: ListView(
-                  physics:
-                      const AlwaysScrollableScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(
                     20,
                     8,
@@ -215,16 +218,14 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       style: const TextStyle(
                         fontSize: 25,
                         fontWeight: FontWeight.w800,
-                        color:
-                            DojoPartnerTheme.textPrimary,
+                        color: DojoPartnerTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       "Here's your work for today.",
                       style: TextStyle(
-                        color:
-                            DojoPartnerTheme.textSecondary,
+                        color: DojoPartnerTheme.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -235,8 +236,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(
                           color: const Color(0xFFEAEAEA),
                         ),
@@ -247,8 +247,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
-                              color: DojoPartnerTheme
-                                  .primaryOrange
+                              color: DojoPartnerTheme.primaryOrange
                                   .withValues(alpha: 0.10),
                               shape: BoxShape.circle,
                             ),
@@ -259,10 +258,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                                   : 'P',
                               style: const TextStyle(
                                 fontSize: 21,
-                                fontWeight:
-                                    FontWeight.w800,
-                                color: DojoPartnerTheme
-                                    .primaryOrange,
+                                fontWeight: FontWeight.w800,
+                                color: DojoPartnerTheme.primaryOrange,
                               ),
                             ),
                           ),
@@ -276,16 +273,14 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                                   _fullName,
                                   style: const TextStyle(
                                     fontSize: 17,
-                                    fontWeight:
-                                        FontWeight.w800,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 const Row(
                                   children: [
                                     Icon(
-                                      Icons
-                                          .verified_rounded,
+                                      Icons.verified_rounded,
                                       size: 16,
                                       color: Colors.green,
                                     ),
@@ -294,10 +289,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                                       'Verified Partner',
                                       style: TextStyle(
                                         fontSize: 13,
-                                        color:
-                                            Colors.green,
-                                        fontWeight:
-                                            FontWeight.w600,
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
@@ -307,8 +300,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                                   'Partner ID  •  $_partnerId',
                                   style: const TextStyle(
                                     fontSize: 12,
-                                    color: DojoPartnerTheme
-                                        .textSecondary,
+                                    color:
+                                        DojoPartnerTheme.textSecondary,
                                   ),
                                 ),
                               ],
@@ -327,21 +320,18 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
-                          color: DojoPartnerTheme
-                              .textSecondary,
+                          color: DojoPartnerTheme.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
 
                       if (!_bankAdded)
                         _SetupCard(
-                          icon: Icons
-                              .account_balance_outlined,
+                          icon: Icons.account_balance_outlined,
                           title: 'Add Bank Account',
                           description:
                               'Add your bank account to receive your earnings.',
-                          buttonText:
-                              'Add Bank Account',
+                          buttonText: 'Add Bank Account',
                           onTap: _openBankDetails,
                         ),
 
@@ -350,10 +340,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
                       if (!_scheduleSet)
                         _SetupCard(
-                          icon: Icons
-                              .calendar_month_outlined,
-                          title:
-                              'Set Working Schedule',
+                          icon: Icons.calendar_month_outlined,
+                          title: 'Set Working Schedule',
                           description:
                               'Set your working days and regular walk timings.',
                           buttonText: 'Set Schedule',
@@ -368,8 +356,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16),
                         border: Border.all(
                           color: const Color(0xFFEAEAEA),
                         ),
@@ -387,16 +374,14 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               'Working',
                               style: TextStyle(
                                 fontSize: 16,
-                                fontWeight:
-                                    FontWeight.w700,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
                           Text(
                             'Today',
                             style: TextStyle(
-                              color: DojoPartnerTheme
-                                  .textSecondary,
+                              color: DojoPartnerTheme.textSecondary,
                             ),
                           ),
                         ],
@@ -412,8 +397,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: DojoPartnerTheme
-                            .textSecondary,
+                        color: DojoPartnerTheme.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -422,8 +406,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       children: [
                         Expanded(
                           child: _OverviewCard(
-                            icon: Icons
-                                .directions_walk_outlined,
+                            icon: Icons.directions_walk_outlined,
                             title: 'Walks',
                             value: '2',
                           ),
@@ -431,8 +414,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: _OverviewCard(
-                            icon:
-                                Icons.timer_outlined,
+                            icon: Icons.timer_outlined,
                             title: 'Hours',
                             value: '2 hrs',
                           ),
@@ -449,8 +431,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
-                        color: DojoPartnerTheme
-                            .textSecondary,
+                        color: DojoPartnerTheme.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -498,21 +479,16 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                     // SUPPORT
                     Material(
                       color: Colors.white,
-                      borderRadius:
-                          BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(16),
                       child: InkWell(
-                        borderRadius:
-                            BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(16),
                         onTap: () {},
                         child: Container(
-                          padding:
-                              const EdgeInsets.all(18),
+                          padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color:
-                                  const Color(0xFFEAEAEA),
+                              color: const Color(0xFFEAEAEA),
                             ),
                           ),
                           child: Row(
@@ -520,39 +496,29 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               Container(
                                 width: 44,
                                 height: 44,
-                                decoration:
-                                    BoxDecoration(
-                                  color:
-                                      DojoPartnerTheme
-                                          .primaryOrange
-                                          .withValues(
-                                    alpha: 0.10,
-                                  ),
+                                decoration: BoxDecoration(
+                                  color: DojoPartnerTheme.primaryOrange
+                                      .withValues(alpha: 0.10),
                                   borderRadius:
-                                      BorderRadius
-                                          .circular(12),
+                                      BorderRadius.circular(12),
                                 ),
                                 child: const Icon(
-                                  Icons
-                                      .support_agent_outlined,
+                                  Icons.support_agent_outlined,
                                   color:
-                                      DojoPartnerTheme
-                                          .primaryOrange,
+                                      DojoPartnerTheme.primaryOrange,
                                 ),
                               ),
                               const SizedBox(width: 12),
                               const Expanded(
                                 child: Column(
                                   crossAxisAlignment:
-                                      CrossAxisAlignment
-                                          .start,
+                                      CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'Need a day off?',
                                       style: TextStyle(
                                         fontSize: 15,
-                                        fontWeight:
-                                            FontWeight.w800,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                     SizedBox(height: 4),
@@ -561,8 +527,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                                       style: TextStyle(
                                         fontSize: 13,
                                         color:
-                                            DojoPartnerTheme
-                                                .textSecondary,
+                                            DojoPartnerTheme.textSecondary,
                                       ),
                                     ),
                                   ],
@@ -570,8 +535,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                               ),
                               const Icon(
                                 Icons.chevron_right,
-                                color: DojoPartnerTheme
-                                    .textSecondary,
+                                color: DojoPartnerTheme.textSecondary,
                               ),
                             ],
                           ),
@@ -594,19 +558,13 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
             label: 'Home',
           ),
           NavigationDestination(
-            icon:
-                Icon(Icons.calendar_month_outlined),
-            selectedIcon:
-                Icon(Icons.calendar_month),
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
             label: 'Schedule',
           ),
           NavigationDestination(
-            icon: Icon(
-              Icons.account_balance_wallet_outlined,
-            ),
-            selectedIcon: Icon(
-              Icons.account_balance_wallet,
-            ),
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet),
             label: 'Earnings',
           ),
           NavigationDestination(
@@ -647,8 +605,7 @@ class _SetupCard extends StatelessWidget {
         ),
       ),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 44,
@@ -656,28 +613,24 @@ class _SetupCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: DojoPartnerTheme.primaryOrange
                   .withValues(alpha: 0.10),
-              borderRadius:
-                  BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color:
-                  DojoPartnerTheme.primaryOrange,
+              color: DojoPartnerTheme.primaryOrange,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
-                    color:
-                        DojoPartnerTheme.textPrimary,
+                    color: DojoPartnerTheme.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -686,9 +639,7 @@ class _SetupCard extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 13,
                     height: 1.35,
-                    color:
-                        DojoPartnerTheme
-                            .textSecondary,
+                    color: DojoPartnerTheme.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -696,23 +647,17 @@ class _SetupCard extends StatelessWidget {
                   height: 40,
                   child: OutlinedButton(
                     onPressed: onTap,
-                    style:
-                        OutlinedButton.styleFrom(
+                    style: OutlinedButton.styleFrom(
                       foregroundColor:
-                          DojoPartnerTheme
-                              .primaryOrange,
+                          DojoPartnerTheme.primaryOrange,
                       side: const BorderSide(
-                        color: DojoPartnerTheme
-                            .primaryOrange,
+                        color: DojoPartnerTheme.primaryOrange,
                       ),
-                      padding:
-                          const EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 14,
                       ),
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                     child: Text(buttonText),
@@ -744,8 +689,7 @@ class _OverviewCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: const Color(0xFFEAEAEA),
         ),
@@ -754,21 +698,18 @@ class _OverviewCard extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color:
-                DojoPartnerTheme.primaryOrange,
+            color: DojoPartnerTheme.primaryOrange,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   value,
                   style: const TextStyle(
                     fontSize: 19,
-                    fontWeight:
-                        FontWeight.w800,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -776,9 +717,7 @@ class _OverviewCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 12,
-                    color:
-                        DojoPartnerTheme
-                            .textSecondary,
+                    color: DojoPartnerTheme.textSecondary,
                   ),
                 ),
               ],
@@ -811,35 +750,27 @@ class _WalkCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius:
-          BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding:
-              const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color:
-                  const Color(0xFFEAEAEA),
+              color: const Color(0xFFEAEAEA),
             ),
           ),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 time,
                 style: const TextStyle(
                   fontSize: 20,
-                  fontWeight:
-                      FontWeight.w800,
-                  color: DojoPartnerTheme
-                      .primaryOrange,
+                  fontWeight: FontWeight.w800,
+                  color: DojoPartnerTheme.primaryOrange,
                 ),
               ),
               const SizedBox(height: 12),
@@ -853,36 +784,29 @@ class _WalkCard extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           dogName,
-                          style:
-                              const TextStyle(
+                          style: const TextStyle(
                             fontSize: 17,
-                            fontWeight:
-                                FontWeight.w800,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '$type • $duration',
-                          style:
-                              const TextStyle(
+                          style: const TextStyle(
                             color:
-                                DojoPartnerTheme
-                                    .textSecondary,
+                                DojoPartnerTheme.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           location,
-                          style:
-                              const TextStyle(
+                          style: const TextStyle(
                             color:
-                                DojoPartnerTheme
-                                    .textSecondary,
+                                DojoPartnerTheme.textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -891,8 +815,7 @@ class _WalkCard extends StatelessWidget {
                   ),
                   const Icon(
                     Icons.chevron_right,
-                    color: DojoPartnerTheme
-                        .textSecondary,
+                    color: DojoPartnerTheme.textSecondary,
                   ),
                 ],
               ),
