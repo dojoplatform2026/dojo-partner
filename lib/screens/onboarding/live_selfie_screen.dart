@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'bank_details_screen.dart';
 
 class LiveSelfieScreen extends StatefulWidget {
   const LiveSelfieScreen({super.key});
@@ -50,15 +51,12 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Selfie verification request saved.',
-          ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const BankDetailsScreen(),
         ),
       );
-
-      // Next step: Bank Details.
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
