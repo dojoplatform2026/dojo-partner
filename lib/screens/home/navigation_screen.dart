@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
@@ -10,12 +11,14 @@ class NavigationScreen extends StatefulWidget {
     required this.dogName,
     required this.location,
     required this.duration,
+    this.bookingId,
   });
 
   final String time;
   final String dogName;
   final String location;
   final String duration;
+  final String? bookingId;
 
   @override
   State<NavigationScreen> createState() => _NavigationScreenState();
@@ -25,20 +28,73 @@ class _NavigationScreenState extends State<NavigationScreen> {
   bool _arrived = false;
   bool _dogReceived = false;
   double _slideValue = 0;
+  bool _updatingBooking = false;
 
-  void _markArrived() {
+  Future<void> _updateBookingStatus(String status) async {
+    final bookingId = widget.bookingId;
+
+    if (bookingId == null || bookingId.isEmpty) {
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('bookings')
+          .doc(bookingId)
+          .update({
+        'status': status,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Booking update failed. Please try again.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _markArrived() async {
+    if (_updatingBooking) return;
+
+    setState(() {
+      _updatingBooking = true;
+    });
+
+    await _updateBookingStatus('accepted');
+
+    if (!mounted) return;
+
     setState(() {
       _arrived = true;
+      _updatingBooking = false;
     });
   }
 
-  void _markDogReceived() {
+  Future<void> _markDogReceived() async {
+    if (_updatingBooking) return;
+
+    setState(() {
+      _updatingBooking = true;
+    });
+
+    await _updateBookingStatus('picked_up');
+
+    if (!mounted) return;
+
     setState(() {
       _dogReceived = true;
+      _updatingBooking = false;
     });
   }
 
   void _onSlideChanged(double value) {
+    if (_slideValue >= 0.92) return;
+
     setState(() {
       _slideValue = value;
     });
@@ -48,8 +104,18 @@ class _NavigationScreenState extends State<NavigationScreen> {
     }
   }
 
-  void _startWalk() {
-    if (!_dogReceived) return;
+  Future<void> _startWalk() async {
+    if (!_arrived || !_dogReceived || _updatingBooking) {
+      return;
+    }
+
+    setState(() {
+      _updatingBooking = true;
+    });
+
+    await _updateBookingStatus('walking');
+
+    if (!mounted) return;
 
     Navigator.pushReplacement(
       context,
@@ -59,6 +125,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
           dogName: widget.dogName,
           location: widget.location,
           duration: widget.duration,
+          bookingId: widget.bookingId,
         ),
       ),
     );
@@ -117,7 +184,8 @@ class _NavigationScreenState extends State<NavigationScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.dogName,
@@ -134,14 +202,16 @@ class _NavigationScreenState extends State<NavigationScreen> {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: DojoPartnerTheme.textSecondary,
+                            color:
+                                DojoPartnerTheme.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
                           widget.time,
                           style: const TextStyle(
-                            color: DojoPartnerTheme.primaryOrange,
+                            color:
+                                DojoPartnerTheme.primaryOrange,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -204,23 +274,55 @@ class _NavigationScreenState extends State<NavigationScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _markArrived,
-                          child: const Text('Arrived at Pickup'),
+                          onPressed: _updatingBooking
+                              ? null
+                              : _markArrived,
+                          child: _updatingBooking
+                              ? const SizedBox(
+                                  height: 22,
+                                  width: 22,
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Arrived at Pickup',
+                                ),
                         ),
                       )
                     else if (!_dogReceived)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
-                          onPressed: _markDogReceived,
-                          icon: const Icon(Icons.pets),
-                          label: const Text('Dog Received'),
+                          onPressed: _updatingBooking
+                              ? null
+                              : _markDogReceived,
+                          icon: _updatingBooking
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child:
+                                      CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.pets),
+                          label: Text(
+                            _updatingBooking
+                                ? 'Updating...'
+                                : 'Dog Received',
+                          ),
                         ),
                       )
                     else
                       _SlideToStart(
                         value: _slideValue,
-                        onChanged: _onSlideChanged,
+                        onChanged: _updatingBooking
+                            ? null
+                            : _onSlideChanged,
                       ),
                   ],
                 ),
@@ -240,7 +342,7 @@ class _SlideToStart extends StatelessWidget {
   });
 
   final double value;
-  final ValueChanged<double> onChanged;
+  final ValueChanged<double>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +365,8 @@ class _SlideToStart extends StatelessWidget {
                     const Color(0xFFFFE0CC),
                 thumbColor: Colors.white,
                 overlayColor: Colors.transparent,
-                thumbShape: const RoundSliderThumbShape(
+                thumbShape:
+                    const RoundSliderThumbShape(
                   enabledThumbRadius: 25,
                 ),
               ),
