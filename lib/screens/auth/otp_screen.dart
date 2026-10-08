@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'account_check_screen.dart';
 
 class OtpScreen extends StatefulWidget {
   const OtpScreen({
@@ -16,6 +17,8 @@ class OtpScreen extends StatefulWidget {
 
 class _OtpScreenState extends State<OtpScreen> {
   final _otpController = TextEditingController();
+
+  bool _isVerifying = false;
 
   @override
   void dispose() {
@@ -35,7 +38,24 @@ class _OtpScreenState extends State<OtpScreen> {
       return;
     }
 
-    // Firebase OTP verification next step.
+    setState(() {
+      _isVerifying = true;
+    });
+
+    // Temporary OTP verification.
+    // Firebase Phone Auth will replace this later.
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AccountCheckScreen(
+            phoneNumber: widget.phoneNumber,
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -88,15 +108,24 @@ class _OtpScreenState extends State<OtpScreen> {
               const SizedBox(height: 20),
 
               ElevatedButton(
-                onPressed: _verify,
-                child: const Text('Verify OTP'),
+                onPressed: _isVerifying ? null : _verify,
+                child: _isVerifying
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Verify OTP'),
               ),
 
               const SizedBox(height: 16),
 
               Center(
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: _isVerifying ? null : () {},
                   child: const Text(
                     'Resend OTP',
                     style: TextStyle(
