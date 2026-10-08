@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'aadhaar_kyc_screen.dart';
 
 class WorkZoneScreen extends StatefulWidget {
   const WorkZoneScreen({super.key});
@@ -57,13 +58,12 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Work zone saved successfully.'),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const AadhaarKycScreen(),
         ),
       );
-
-      // Next onboarding step will be added here.
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
