@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'navigation_screen.dart';
 
 class WalkDetailsScreen extends StatelessWidget {
   const WalkDetailsScreen({
@@ -168,16 +169,23 @@ class WalkDetailsScreen extends StatelessWidget {
 
             ElevatedButton.icon(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Navigation will be connected next.',
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => NavigationScreen(
+                      dogName: dogName,
+                      location: location,
+                      duration: duration,
                     ),
                   ),
                 );
               },
-              icon: const Icon(Icons.navigation_outlined),
-              label: const Text('Navigate to Pickup'),
+              icon: const Icon(
+                Icons.navigation_outlined,
+              ),
+              label: const Text(
+                'Navigate to Pickup',
+              ),
             ),
           ],
         ),
