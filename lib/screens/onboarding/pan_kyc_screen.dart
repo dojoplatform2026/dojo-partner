@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'live_selfie_screen.dart';
 
 class PanKycScreen extends StatefulWidget {
   const PanKycScreen({super.key});
@@ -74,15 +75,12 @@ class _PanKycScreenState extends State<PanKycScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'PAN details submitted for verification.',
-          ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LiveSelfieScreen(),
         ),
       );
-
-      // Next step: Live selfie verification.
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
