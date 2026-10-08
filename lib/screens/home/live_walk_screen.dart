@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../theme.dart';
+import 'walk_summary_screen.dart';
 
 class LiveWalkScreen extends StatefulWidget {
   const LiveWalkScreen({
@@ -22,12 +24,55 @@ class LiveWalkScreen extends StatefulWidget {
 
 class _LiveWalkScreenState extends State<LiveWalkScreen> {
   Timer? _timer;
+  StreamSubscription<Position>? _positionSubscription;
 
   int _seconds = 0;
+  double _distanceMeters = 0;
+
+  Position? _lastPosition;
+
+  bool _isStarting = true;
+  bool _isEnding = false;
 
   @override
   void initState() {
     super.initState();
+    _startWalk();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _positionSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startWalk() async {
+    final permission = await _checkLocationPermission();
+
+    if (!permission) {
+      if (!mounted) return;
+
+      setState(() {
+        _isStarting = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Location permission is required to start the walk.',
+          ),
+        ),
+      );
+
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _isStarting = false;
+    });
 
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -39,12 +84,90 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         });
       },
     );
+
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen(
+      (position) {
+        if (_lastPosition != null) {
+          final meters = Geolocator.distanceBetween(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+
+          if (meters > 0 && meters < 100) {
+            _distanceMeters += meters;
+          }
+        }
+
+        _lastPosition = position;
+
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  Future<bool> _checkLocationPermission() async {
+    final serviceEnabled =
+        await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      if (!mounted) return false;
+
+      await showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text(
+              'Location is off',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            content: const Text(
+              'Please turn on location services to start the walk.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: const Text('OK'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await Geolocator.openLocationSettings();
+                },
+                child: const Text('Open Settings'),
+              ),
+            ],
+          );
+        },
+      );
+
+      return false;
+    }
+
+    var permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      return false;
+    }
+
+    return true;
   }
 
   String get _formattedTime {
@@ -57,13 +180,43 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         '${seconds.toString().padLeft(2, '0')}';
   }
 
-  void _endWalk() {
-    _timer?.cancel();
+  String get _formattedDistance {
+    final kilometers = _distanceMeters / 1000;
 
-    showDialog(
+    return '${kilometers.toStringAsFixed(2)} km';
+  }
+
+  Future<void> _endWalk() async {
+    if (_isEnding) return;
+
+    setState(() {
+      _isEnding = true;
+    });
+
+    _timer?.cancel();
+    await _positionSubscription?.cancel();
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WalkSummaryScreen(
+          dogName: widget.dogName,
+          type: 'Regular Walk',
+          scheduledTime: widget.duration,
+          durationSeconds: _seconds,
+          distanceKm: _distanceMeters / 1000,
+          location: widget.location,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmEndWalk() async {
+    final shouldEnd = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
+      builder: (context) {
         return AlertDialog(
           title: const Text(
             'End Walk?',
@@ -77,32 +230,13 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
-
-                _timer = Timer.periodic(
-                  const Duration(seconds: 1),
-                  (_) {
-                    if (!mounted) return;
-
-                    setState(() {
-                      _seconds++;
-                    });
-                  },
-                );
+                Navigator.pop(context, false);
               },
               child: const Text('Continue Walk'),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(dialogContext);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Walk completed. Summary will come next.',
-                    ),
-                  ),
-                );
+                Navigator.pop(context, true);
               },
               child: const Text('End Walk'),
             ),
@@ -110,10 +244,37 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         );
       },
     );
+
+    if (shouldEnd == true) {
+      await _endWalk();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isStarting) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                color: DojoPartnerTheme.primaryOrange,
+              ),
+              SizedBox(height: 18),
+              Text(
+                'Starting walk...',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -213,7 +374,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                       child: _StatCard(
                         icon: Icons.route_outlined,
                         title: 'Distance',
-                        value: '0.0 km',
+                        value: _formattedDistance,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -232,9 +393,16 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _endWalk,
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    label: const Text('End Walk'),
+                    onPressed:
+                        _isEnding ? null : _confirmEndWalk,
+                    icon: const Icon(
+                      Icons.stop_circle_outlined,
+                    ),
+                    label: Text(
+                      _isEnding
+                          ? 'Ending Walk...'
+                          : 'End Walk',
+                    ),
                   ),
                 ),
               ],
