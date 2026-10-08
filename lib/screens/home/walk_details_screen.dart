@@ -72,9 +72,7 @@ class WalkDetailsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 24),
-
             const Text(
               'WALK INFORMATION',
               style: TextStyle(
@@ -84,33 +82,25 @@ class WalkDetailsScreen extends StatelessWidget {
                 color: DojoPartnerTheme.textSecondary,
               ),
             ),
-
             const SizedBox(height: 12),
-
             _InfoCard(
               icon: Icons.access_time_rounded,
               title: 'Scheduled Time',
               value: time,
             ),
-
             const SizedBox(height: 10),
-
             _InfoCard(
               icon: Icons.timer_outlined,
               title: 'Duration',
               value: duration,
             ),
-
             const SizedBox(height: 10),
-
             _InfoCard(
               icon: Icons.location_on_outlined,
               title: 'Pickup Location',
               value: location,
             ),
-
             const SizedBox(height: 28),
-
             const Text(
               'CUSTOMER / DOG',
               style: TextStyle(
@@ -120,9 +110,7 @@ class WalkDetailsScreen extends StatelessWidget {
                 color: DojoPartnerTheme.textSecondary,
               ),
             ),
-
             const SizedBox(height: 12),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -164,15 +152,14 @@ class WalkDetailsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 32),
-
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => NavigationScreen(
+                      time: time,
                       dogName: dogName,
                       location: location,
                       duration: duration,
