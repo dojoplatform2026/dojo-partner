@@ -379,16 +379,12 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                   dogName: widget.dogName,
                   duration: widget.duration,
                 ),
-
                 const SizedBox(height: 12),
-
                 _LiveMap(
                   route: _route,
                   tracking: _locationTracking,
                 ),
-
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Expanded(
@@ -406,9 +402,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 12),
-
                 _WalkNotesCard(
                   peeCount: _peeCount,
                   poopCount: _poopCount,
@@ -417,9 +411,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                   onPeeMinus: _decreasePee,
                   onPoopMinus: _decreasePoop,
                 ),
-
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Icon(
@@ -460,9 +452,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 16),
-
                 _SlideToEnd(
                   enabled: !_isEnding,
                   onCompleted: _confirmEndWalk,
@@ -721,7 +711,7 @@ class _RoutePainter extends CustomPainter {
     }
 
     final shadowPaint = Paint()
-      ..color = Colors.black.withOpacity(0.12)
+      ..color = Colors.black.withValues(alpha: 0.12)
       ..strokeWidth = 8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -833,7 +823,7 @@ class _RoutePainter extends CustomPainter {
     Offset point,
   ) {
     final shadow = Paint()
-      ..color = Colors.black.withOpacity(0.18);
+      ..color = Colors.black.withValues(alpha: 0.18);
 
     canvas.drawCircle(
       point.translate(0, 2),
@@ -1039,8 +1029,7 @@ class _NoteControl extends StatelessWidget {
               size: 18,
             ),
             tooltip: 'Decrease $label',
-            visualDensity:
-                VisualDensity.compact,
+            visualDensity: VisualDensity.compact,
           ),
           IconButton(
             onPressed: onAdd,
@@ -1049,8 +1038,7 @@ class _NoteControl extends StatelessWidget {
               size: 18,
             ),
             tooltip: 'Add $label',
-            visualDensity:
-                VisualDensity.compact,
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
@@ -1068,12 +1056,10 @@ class _SlideToEnd extends StatefulWidget {
   final Future<void> Function() onCompleted;
 
   @override
-  State<_SlideToEnd> createState() =>
-      _SlideToEndState();
+  State<_SlideToEnd> createState() => _SlideToEndState();
 }
 
-class _SlideToEndState
-    extends State<_SlideToEnd> {
+class _SlideToEndState extends State<_SlideToEnd> {
   double _value = 0;
   bool _completed = false;
 
@@ -1118,11 +1104,10 @@ class _SlideToEndState
               padding: const EdgeInsets.only(
                 left: 55,
               ),
-              child: Text(
+              child: const Text(
                 'Slide to End Walk  →',
-                style: const TextStyle(
-                  color:
-                      DojoPartnerTheme.primaryOrange,
+                style: TextStyle(
+                  color: DojoPartnerTheme.primaryOrange,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1149,9 +1134,7 @@ class _SlideToEndState
               min: 0,
               max: 1,
               onChanged:
-                  widget.enabled
-                      ? _onChanged
-                      : null,
+                  widget.enabled ? _onChanged : null,
             ),
           ),
         ],
