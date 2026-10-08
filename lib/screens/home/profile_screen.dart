@@ -33,11 +33,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+
       return;
     }
 
@@ -279,9 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.info_outline,
                     title: 'About DOJO Partner',
                     subtitle: 'App information',
-                    onTap: () {
-                      _showAboutDialog();
-                    },
+                    onTap: _showAboutDialog,
                   ),
 
                   const SizedBox(height: 24),
@@ -509,31 +508,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(dialogContext);
 
-                try {
-                  await FirebaseAuth.instance.signOut();
-
-                  if (!mounted) return;
-
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                      builder: (_) => const MobileLoginScreen(),
-                    ),
-                    (route) => false,
-                  );
-                } catch (_) {
-                  if (!mounted) return;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Logout failed. Please try again.',
-                      ),
-                    ),
-                  );
-                }
+                _performLogout();
               },
               child: const Text(
                 'Logout',
@@ -547,6 +525,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       },
     );
+  }
+
+  Future<void> _performLogout() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => const MobileLoginScreen(),
+        ),
+        (route) => false,
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Logout failed. Please try again.',
+          ),
+        ),
+      );
+    }
   }
 }
 
