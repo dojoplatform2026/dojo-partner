@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme.dart';
 import 'live_walk_screen.dart';
 
-class NavigationScreen extends StatelessWidget {
+class NavigationScreen extends StatefulWidget {
   const NavigationScreen({
     super.key,
     required this.time,
@@ -18,6 +18,33 @@ class NavigationScreen extends StatelessWidget {
   final String duration;
 
   @override
+  State<NavigationScreen> createState() => _NavigationScreenState();
+}
+
+class _NavigationScreenState extends State<NavigationScreen> {
+  bool _arrived = false;
+
+  void _markArrived() {
+    setState(() {
+      _arrived = true;
+    });
+  }
+
+  void _startWalk() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LiveWalkScreen(
+          time: widget.time,
+          dogName: widget.dogName,
+          location: widget.location,
+          duration: widget.duration,
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -30,6 +57,7 @@ class NavigationScreen extends StatelessWidget {
       ),
       body: Stack(
         children: [
+          // Map placeholder.
           Container(
             width: double.infinity,
             height: double.infinity,
@@ -43,7 +71,7 @@ class NavigationScreen extends StatelessWidget {
             ),
           ),
 
-          // Pickup information
+          // Pickup information.
           Positioned(
             top: 20,
             left: 20,
@@ -60,7 +88,11 @@ class NavigationScreen extends StatelessWidget {
               child: Row(
                 children: [
                   const CircleAvatar(
-                    child: Icon(Icons.pets),
+                    backgroundColor: Color(0xFFFFF1E8),
+                    child: Icon(
+                      Icons.pets,
+                      color: DojoPartnerTheme.primaryOrange,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -69,7 +101,9 @@ class NavigationScreen extends StatelessWidget {
                           CrossAxisAlignment.start,
                       children: [
                         Text(
-                          dogName,
+                          widget.dogName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
@@ -77,18 +111,18 @@ class NavigationScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Pickup • $location',
+                          'Pickup • ${widget.location}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color:
-                                DojoPartnerTheme.textSecondary,
+                            color: DojoPartnerTheme.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          time,
+                          widget.time,
                           style: const TextStyle(
-                            color:
-                                DojoPartnerTheme.primaryOrange,
+                            color: DojoPartnerTheme.primaryOrange,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
                           ),
@@ -101,7 +135,7 @@ class NavigationScreen extends StatelessWidget {
             ),
           ),
 
-          // Bottom action
+          // Bottom action.
           Positioned(
             left: 20,
             right: 20,
@@ -118,18 +152,23 @@ class NavigationScreen extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    const Row(
+                    Row(
                       children: [
                         Icon(
-                          Icons.location_on,
-                          color:
-                              DojoPartnerTheme.primaryOrange,
+                          _arrived
+                              ? Icons.check_circle
+                              : Icons.navigation_outlined,
+                          color: _arrived
+                              ? Colors.green
+                              : DojoPartnerTheme.primaryOrange,
                         ),
-                        SizedBox(width: 10),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'You are navigating to the pickup location.',
-                            style: TextStyle(
+                            _arrived
+                                ? 'Pickup location reached. You can start the walk.'
+                                : 'Navigate to the pickup location and mark your arrival.',
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -141,21 +180,12 @@ class NavigationScreen extends StatelessWidget {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => LiveWalkScreen(
-                                time: time,
-                                dogName: dogName,
-                                location: location,
-                                duration: duration,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'Start Walk',
+                        onPressed:
+                            _arrived ? _startWalk : _markArrived,
+                        child: Text(
+                          _arrived
+                              ? 'Start Walk'
+                              : 'Arrived at Pickup',
                         ),
                       ),
                     ),
