@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'pan_kyc_screen.dart';
 
 class AadhaarKycScreen extends StatefulWidget {
   const AadhaarKycScreen({super.key});
@@ -56,7 +57,6 @@ class _AadhaarKycScreenState extends State<AadhaarKycScreen> {
       );
 
       // Do not store the full Aadhaar number in Firestore.
-      // This temporary masked value is only for onboarding state.
       final maskedAadhaar =
           'XXXX XXXX ${aadhaar.substring(aadhaar.length - 4)}';
 
@@ -71,7 +71,6 @@ class _AadhaarKycScreenState extends State<AadhaarKycScreen> {
               'maskedNumber': maskedAadhaar,
             },
           },
-          'verificationStatus': 'pending',
           'updatedAt': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
@@ -79,15 +78,12 @@ class _AadhaarKycScreenState extends State<AadhaarKycScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Aadhaar details submitted for verification.',
-          ),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const PanKycScreen(),
         ),
       );
-
-      // Next step: PAN KYC.
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
