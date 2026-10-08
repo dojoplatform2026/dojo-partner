@@ -25,6 +25,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
 
   bool _showReviewPrompt = false;
   String? _reviewDogName;
+  String? _reviewWalkId;
 
   String _fullName = 'Partner';
   String _partnerId = 'DOJO-W-00124';
@@ -109,6 +110,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
           .get();
 
       String? latestDogName;
+      String? latestWalkId;
       DateTime? latestCreatedAt;
 
       for (final doc in snapshot.docs) {
@@ -118,8 +120,19 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
           continue;
         }
 
+        // Already reviewed or skipped walks should not
+        // show the review prompt again.
+        final reviewStatus = data['reviewStatus'];
+
+        if (reviewStatus == 'submitted' ||
+            reviewStatus == 'skipped') {
+          continue;
+        }
+
         final dogName = data['dogName'];
-        if (dogName is! String || dogName.trim().isEmpty) {
+
+        if (dogName is! String ||
+            dogName.trim().isEmpty) {
           continue;
         }
 
@@ -130,9 +143,11 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         if (createdValue is Timestamp) {
           createdAt = createdValue.toDate();
         } else if (data['endedAt'] is Timestamp) {
-          createdAt = (data['endedAt'] as Timestamp).toDate();
+          createdAt =
+              (data['endedAt'] as Timestamp).toDate();
         } else if (data['startedAt'] is Timestamp) {
-          createdAt = (data['startedAt'] as Timestamp).toDate();
+          createdAt =
+              (data['startedAt'] as Timestamp).toDate();
         }
 
         if (latestCreatedAt == null ||
@@ -140,17 +155,19 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                 createdAt.isAfter(latestCreatedAt))) {
           latestCreatedAt = createdAt;
           latestDogName = dogName.trim();
+          latestWalkId = doc.id;
         }
       }
 
       if (!mounted) return;
 
-      if (latestDogName != null) {
-        setState(() {
-          _reviewDogName = latestDogName;
-          _showReviewPrompt = true;
-        });
-      }
+      setState(() {
+        _reviewDogName = latestDogName;
+        _reviewWalkId = latestWalkId;
+        _showReviewPrompt =
+            latestDogName != null &&
+            latestWalkId != null;
+      });
     } catch (_) {
       // Review prompt is optional.
       // Home should continue working even if walk lookup fails.
@@ -239,6 +256,37 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     await _loadPartnerData();
   }
 
+  Future<void> _saveReviewStatus({
+    required String status,
+    int? rating,
+    String? note,
+  }) async {
+    final walkId = _reviewWalkId;
+
+    if (walkId == null || walkId.isEmpty) {
+      return;
+    }
+
+    final reviewData = <String, dynamic>{
+      'reviewStatus': status,
+      'reviewedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (rating != null) {
+      reviewData['reviewRating'] = rating;
+    }
+
+    if (note != null && note.trim().isNotEmpty) {
+      reviewData['reviewNote'] = note.trim();
+    }
+
+    await FirebaseFirestore.instance
+        .collection('walks')
+        .doc(walkId)
+        .update(reviewData);
+  }
+
   Future<void> _showReviewSheet() async {
     final dogName = _reviewDogName;
 
@@ -246,7 +294,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
       return;
     }
 
-    final result = await showModalBottomSheet<bool>(
+    final result =
+        await showModalBottomSheet<ReviewResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -257,12 +306,76 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
       },
     );
 
-    if (!mounted) return;
+    if (!mounted || result == null) {
+      return;
+    }
 
-    if (result == true || result == false) {
+    try {
+      if (result.submitted) {
+        await _saveReviewStatus(
+          status: 'submitted',
+          rating: result.rating,
+          note: result.note,
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _showReviewPrompt = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Thanks for your feedback!',
+            ),
+          ),
+        );
+      } else {
+        await _saveReviewStatus(
+          status: 'skipped',
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          _showReviewPrompt = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not save your review. Please try again.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _skipReview() async {
+    try {
+      await _saveReviewStatus(
+        status: 'skipped',
+      );
+
+      if (!mounted) return;
+
       setState(() {
         _showReviewPrompt = false;
       });
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Could not skip the review. Please try again.',
+          ),
+        ),
+      );
     }
   }
 
@@ -419,11 +532,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
                       _ReviewPromptCard(
                         dogName: _reviewDogName!,
                         onRate: _showReviewSheet,
-                        onSkip: () {
-                          setState(() {
-                            _showReviewPrompt = false;
-                          });
-                        },
+                        onSkip: _skipReview,
                       ),
                     ],
 
