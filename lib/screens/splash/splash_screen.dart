@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import '../auth/mobile_login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -21,13 +22,12 @@ class _SplashScreenState extends State<SplashScreen> {
     _timer = Timer(const Duration(seconds: 2), () {
       if (!mounted) return;
 
-      // Login screen next milestone.
-      // Navigator.pushReplacement(
-      //   context,
-      //   MaterialPageRoute(
-      //     builder: (_) => const MobileLoginScreen(),
-      //   ),
-      // );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const MobileLoginScreen(),
+        ),
+      );
     });
   }
 
@@ -63,9 +63,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 24),
-
             const Text(
               'DOJO Partner',
               style: TextStyle(
@@ -74,9 +72,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 fontWeight: FontWeight.w800,
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               'Walk. Care. Earn.',
               style: TextStyle(
