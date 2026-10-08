@@ -16,12 +16,14 @@ class LiveWalkScreen extends StatefulWidget {
     required this.dogName,
     required this.location,
     required this.duration,
+    this.bookingId,
   });
 
   final String time;
   final String dogName;
   final String location;
   final String duration;
+  final String? bookingId;
 
   @override
   State<LiveWalkScreen> createState() => _LiveWalkScreenState();
@@ -326,6 +328,11 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      if (widget.bookingId != null &&
+          widget.bookingId!.isNotEmpty) {
+        walkData['bookingId'] = widget.bookingId;
+      }
+
       if (_startPosition != null) {
         walkData['startLocation'] = GeoPoint(
           _startPosition!.latitude,
@@ -343,6 +350,18 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       await FirebaseFirestore.instance
           .collection('walks')
           .add(walkData);
+
+      if (widget.bookingId != null &&
+          widget.bookingId!.isNotEmpty) {
+        await FirebaseFirestore.instance
+            .collection('bookings')
+            .doc(widget.bookingId)
+            .update({
+          'status': 'completed',
+          'completedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
 
       if (!mounted) return;
 
