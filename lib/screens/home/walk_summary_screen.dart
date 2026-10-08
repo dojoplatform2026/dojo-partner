@@ -44,12 +44,6 @@ class WalkSummaryScreen extends StatelessWidget {
     return '${distanceKm.toStringAsFixed(2)} km';
   }
 
-  String _earning() {
-    // Current MVP earning for a regular 60-minute walk.
-    // Actual earning will come from backend/booking data later.
-    return '₹120';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,7 +67,6 @@ class WalkSummaryScreen extends StatelessWidget {
                   children: [
                     const SizedBox(height: 4),
 
-                    // Completed
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -103,7 +96,6 @@ class WalkSummaryScreen extends StatelessWidget {
 
                     const SizedBox(height: 24),
 
-                    // Dog
                     Column(
                       children: [
                         Container(
@@ -154,19 +146,19 @@ class WalkSummaryScreen extends StatelessWidget {
                           color: const Color(0xFFE8E8E8),
                         ),
                       ),
-                      child: Column(
+                      child: const Column(
                         children: [
                           Text(
-                            _earning(),
-                            style: const TextStyle(
+                            '₹ —',
+                            style: TextStyle(
                               fontSize: 34,
                               fontWeight: FontWeight.w800,
                               color: DojoPartnerTheme.primaryOrange,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Earning',
+                          SizedBox(height: 2),
+                          Text(
+                            'Earning not calculated yet',
                             style: TextStyle(
                               color: DojoPartnerTheme.textSecondary,
                               fontSize: 14,
@@ -179,7 +171,6 @@ class WalkSummaryScreen extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // Walk details
                     Container(
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
@@ -212,7 +203,6 @@ class WalkSummaryScreen extends StatelessWidget {
 
                     if (peeCount > 0 || poopCount > 0) ...[
                       const SizedBox(height: 16),
-
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -264,7 +254,6 @@ class WalkSummaryScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    // Returned
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
@@ -305,7 +294,6 @@ class WalkSummaryScreen extends StatelessWidget {
               ),
             ),
 
-            // Continue to Home
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               child: SizedBox(
