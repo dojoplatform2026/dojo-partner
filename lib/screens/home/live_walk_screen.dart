@@ -9,11 +9,13 @@ import 'walk_summary_screen.dart';
 class LiveWalkScreen extends StatefulWidget {
   const LiveWalkScreen({
     super.key,
+    required this.time,
     required this.dogName,
     required this.location,
     required this.duration,
   });
 
+  final String time;
   final String dogName;
   final String location;
   final String duration;
@@ -74,6 +76,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       _isStarting = false;
     });
 
+    // Start walk timer.
     _timer = Timer.periodic(
       const Duration(seconds: 1),
       (_) {
@@ -85,6 +88,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       },
     );
 
+    // Start GPS tracking.
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -100,6 +104,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
             position.longitude,
           );
 
+          // Ignore GPS jumps/noise.
           if (meters > 0 && meters < 100) {
             _distanceMeters += meters;
           }
@@ -111,6 +116,17 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           setState(() {});
         }
       },
+      onError: (error) {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to update your location.',
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -121,7 +137,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     if (!serviceEnabled) {
       if (!mounted) return false;
 
-      await showDialog(
+      final openSettings = await showDialog<bool>(
         context: context,
         builder: (context) {
           return AlertDialog(
@@ -137,14 +153,13 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context);
+                  Navigator.pop(context, false);
                 },
-                child: const Text('OK'),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await Geolocator.openLocationSettings();
+                onPressed: () {
+                  Navigator.pop(context, true);
                 },
                 child: const Text('Open Settings'),
               ),
@@ -152,6 +167,10 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           );
         },
       );
+
+      if (openSettings == true) {
+        await Geolocator.openLocationSettings();
+      }
 
       return false;
     }
@@ -194,6 +213,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     });
 
     _timer?.cancel();
+
     await _positionSubscription?.cancel();
 
     if (!mounted) return;
@@ -204,7 +224,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         builder: (_) => WalkSummaryScreen(
           dogName: widget.dogName,
           type: 'Regular Walk',
-          scheduledTime: widget.duration,
+          scheduledTime: widget.time,
           durationSeconds: _seconds,
           distanceKm: _distanceMeters / 1000,
           location: widget.location,
@@ -292,6 +312,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
+                // Dog information
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
@@ -326,12 +347,23 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                           color: DojoPartnerTheme.textSecondary,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.time,
+                        style: const TextStyle(
+                          color:
+                              DojoPartnerTheme.primaryOrange,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
+                // Timer
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(
@@ -368,6 +400,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
                 const SizedBox(height: 20),
 
+                // Stats
                 Row(
                   children: [
                     Expanded(
@@ -390,6 +423,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
                 const Spacer(),
 
+                // End walk
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
