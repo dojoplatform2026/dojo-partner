@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
@@ -14,23 +15,134 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
 
+  bool _isLoading = false;
+
   @override
   void dispose() {
     _phoneController.dispose();
     super.dispose();
   }
 
-  void _continue() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _continue() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     final phone = '+91${_phoneController.text.trim()}';
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OtpScreen(phoneNumber: phone),
-      ),
-    );
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: phone,
+
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          try {
+            await FirebaseAuth.instance.signInWithCredential(
+              credential,
+            );
+
+            if (!mounted) return;
+
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => OtpScreen(
+                  phoneNumber: phone,
+                  verificationId: '',
+                ),
+              ),
+            );
+          } on FirebaseAuthException catch (e) {
+            if (!mounted) return;
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  e.message ?? 'Automatic verification failed.',
+                ),
+              ),
+            );
+          }
+        },
+
+        verificationFailed: (FirebaseAuthException e) {
+          if (!mounted) return;
+
+          setState(() {
+            _isLoading = false;
+          });
+
+          String message = 'Unable to send OTP.';
+
+          if (e.code == 'invalid-phone-number') {
+            message = 'Invalid mobile number.';
+          } else if (e.code == 'too-many-requests') {
+            message = 'Too many attempts. Please try again later.';
+          } else if (e.message != null) {
+            message = e.message!;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+            ),
+          );
+        },
+
+        codeSent: (String verificationId, int? resendToken) {
+          if (!mounted) return;
+
+          setState(() {
+            _isLoading = false;
+          });
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OtpScreen(
+                phoneNumber: phone,
+                verificationId: verificationId,
+              ),
+            ),
+          );
+        },
+
+        codeAutoRetrievalTimeout: (String verificationId) {
+          // OTP timeout is handled by Firebase.
+        },
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message ?? 'Something went wrong.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Something went wrong. Please try again.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -94,6 +206,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   maxLength: 10,
+                  enabled: !_isLoading,
                   decoration: const InputDecoration(
                     counterText: '',
                     prefixText: '+91  ',
@@ -111,7 +224,8 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                       return 'Enter your mobile number';
                     }
 
-                    if (!RegExp(r'^[6-9][0-9]{9}$').hasMatch(phone)) {
+                    if (!RegExp(r'^[6-9][0-9]{9}$')
+                        .hasMatch(phone)) {
                       return 'Enter a valid 10-digit mobile number';
                     }
 
@@ -122,8 +236,17 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
                 const SizedBox(height: 18),
 
                 ElevatedButton(
-                  onPressed: _continue,
-                  child: const Text('Continue'),
+                  onPressed: _isLoading ? null : _continue,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Send OTP'),
                 ),
 
                 const SizedBox(height: 24),
