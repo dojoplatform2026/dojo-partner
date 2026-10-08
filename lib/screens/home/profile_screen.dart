@@ -1,9 +1,142 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import '../auth/mobile_login_screen.dart';
+import '../onboarding/bank_details_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _loading = true;
+
+  String _fullName = 'Partner';
+  String _walkerId = 'DOJO-W-00124';
+  String _zoneName = 'Not set';
+  String _service = 'Dog Walking';
+  String _rating = '4.9 / 5.0';
+  String _phone = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('walkers')
+          .doc(user.uid)
+          .get();
+
+      final data = snapshot.data();
+
+      if (data != null) {
+        final services = data['services'];
+        final rating = data['rating'];
+
+        String serviceName = 'Dog Walking';
+
+        if (services is List && services.isNotEmpty) {
+          final firstService = services.first.toString();
+
+          if (firstService == 'dog_walking') {
+            serviceName = 'Dog Walking';
+          } else {
+            serviceName = firstService;
+          }
+        }
+
+        String ratingText = '4.9 / 5.0';
+
+        if (rating is num) {
+          ratingText = '${rating.toStringAsFixed(1)} / 5.0';
+        }
+
+        if (!mounted) return;
+
+        setState(() {
+          _fullName = _readString(
+            data['fullName'],
+            fallback: user.displayName ?? 'Partner',
+          );
+
+          _walkerId = _readString(
+            data['walkerId'],
+            fallback: 'DOJO-W-00124',
+          );
+
+          _zoneName = _readString(
+            data['zoneName'],
+            fallback: 'Not set',
+          );
+
+          _service = serviceName;
+          _rating = ratingText;
+
+          _phone = _readString(
+            data['phone'],
+            fallback: user.phoneNumber ?? '',
+          );
+
+          _loading = false;
+        });
+      } else {
+        if (!mounted) return;
+
+        setState(() {
+          _fullName = user.displayName ?? 'Partner';
+          _phone = user.phoneNumber ?? '';
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  String _readString(
+    dynamic value, {
+    required String fallback,
+  }) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+
+    return fallback;
+  }
+
+  String get _initial {
+    final name = _fullName.trim();
+
+    if (name.isEmpty) {
+      return 'P';
+    }
+
+    return name.substring(0, 1).toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,167 +148,342 @@ class ProfileScreen extends StatelessWidget {
             fontWeight: FontWeight.w800,
           ),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () {
+              _showComingSoon(
+                context,
+                'Settings',
+                'Profile settings will be available here.',
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          children: [
-            // Profile header
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: const Color(0xFFEAEAEA),
+        child: _loading
+            ? const Center(
+                child: CircularProgressIndicator(
+                  color: DojoPartnerTheme.primaryOrange,
                 ),
-              ),
-              child: const Column(
+              )
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  8,
+                  20,
+                  28,
+                ),
                 children: [
-                  CircleAvatar(
-                    radius: 42,
-                    child: Icon(
-                      Icons.person,
-                      size: 42,
+                  _buildProfileHeader(),
+
+                  const SizedBox(height: 24),
+
+                  const _SectionTitle(
+                    title: 'YOUR PROFILE',
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _ActionItem(
+                    icon: Icons.person_outline,
+                    title: 'Personal Details',
+                    subtitle: 'Name and mobile number',
+                    onTap: _openPersonalDetails,
+                  ),
+
+                  _ActionItem(
+                    icon: Icons.description_outlined,
+                    title: 'Documents & KYC',
+                    subtitle: 'Aadhaar, PAN and verification',
+                    onTap: () {
+                      _showComingSoon(
+                        context,
+                        'Documents & KYC',
+                        'Your submitted KYC documents and verification status will appear here.',
+                      );
+                    },
+                  ),
+
+                  _ActionItem(
+                    icon: Icons.account_balance_outlined,
+                    title: 'Bank Details',
+                    subtitle: 'Account for receiving earnings',
+                    onTap: _openBankDetails,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  const _SectionTitle(
+                    title: 'WORK INFORMATION',
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _ProfileItem(
+                    icon: Icons.location_on_outlined,
+                    title: 'Primary Zone',
+                    value: _zoneName,
+                  ),
+
+                  _ProfileItem(
+                    icon: Icons.pets_outlined,
+                    title: 'Service',
+                    value: _service,
+                  ),
+
+                  _ProfileItem(
+                    icon: Icons.star_outline,
+                    title: 'Rating',
+                    value: _rating,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  const _SectionTitle(
+                    title: 'SUPPORT & SETTINGS',
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  _ActionItem(
+                    icon: Icons.notifications_none_outlined,
+                    title: 'Notifications',
+                    subtitle: 'Manage notification preferences',
+                    onTap: () {
+                      _showComingSoon(
+                        context,
+                        'Notifications',
+                        'Notification preferences will be available here.',
+                      );
+                    },
+                  ),
+
+                  _ActionItem(
+                    icon: Icons.support_agent_outlined,
+                    title: 'DOJO Support',
+                    subtitle: 'Get help with your partner account',
+                    onTap: () {
+                      _showComingSoon(
+                        context,
+                        'DOJO Support',
+                        'DOJO Support will be available here.',
+                      );
+                    },
+                  ),
+
+                  _ActionItem(
+                    icon: Icons.info_outline,
+                    title: 'About DOJO Partner',
+                    subtitle: 'App information',
+                    onTap: () {
+                      _showAboutDialog();
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _showLogoutDialog(context);
+                    },
+                    icon: const Icon(
+                      Icons.logout,
+                      color: Colors.red,
+                    ),
+                    label: const Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(
+                        double.infinity,
+                        52,
+                      ),
+                      side: const BorderSide(
+                        color: Color(0xFFE5E5E5),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                  SizedBox(height: 14),
-                  Text(
-                    'Rahul',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    '+91 XXXXX XXXXX',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: DojoPartnerTheme.textSecondary,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  _VerifiedBadge(),
                 ],
               ),
-            ),
+      ),
+    );
+  }
 
-            const SizedBox(height: 24),
-
-            const Text(
-              'WORK INFORMATION',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: DojoPartnerTheme.textSecondary,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            _ProfileItem(
-              icon: Icons.badge_outlined,
-              title: 'Partner ID',
-              value: 'DOJO-W-00124',
-            ),
-
-            _ProfileItem(
-              icon: Icons.location_on_outlined,
-              title: 'Primary Zone',
-              value: 'Civil Lines',
-            ),
-
-            _ProfileItem(
-              icon: Icons.pets_outlined,
-              title: 'Service',
-              value: 'Dog Walking',
-            ),
-
-            _ProfileItem(
-              icon: Icons.star_outline,
-              title: 'Rating',
-              value: '4.9 / 5.0',
-            ),
-
-            const SizedBox(height: 24),
-
-            const Text(
-              'ACCOUNT',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: DojoPartnerTheme.textSecondary,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            _ActionItem(
-              icon: Icons.person_outline,
-              title: 'Personal Details',
-              onTap: () {},
-            ),
-
-            _ActionItem(
-              icon: Icons.account_balance_outlined,
-              title: 'Bank Details',
-              onTap: () {},
-            ),
-
-            _ActionItem(
-              icon: Icons.description_outlined,
-              title: 'Documents & KYC',
-              onTap: () {},
-            ),
-
-            _ActionItem(
-              icon: Icons.support_agent_outlined,
-              title: 'DOJO Support',
-              onTap: () {},
-            ),
-
-            _ActionItem(
-              icon: Icons.info_outline,
-              title: 'About DOJO Partner',
-              onTap: () {},
-            ),
-
-            const SizedBox(height: 24),
-
-            OutlinedButton.icon(
-              onPressed: () {
-                _showLogoutDialog(context);
-              },
-              icon: const Icon(
-                Icons.logout,
-                color: Colors.red,
-              ),
-              label: const Text(
-                'Logout',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(
-                  double.infinity,
-                  52,
-                ),
-                side: const BorderSide(
-                  color: Color(0xFFE5E5E5),
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: const Color(0xFFEAEAEA),
         ),
       ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 34,
+            backgroundColor: DojoPartnerTheme.primaryOrange,
+            child: Text(
+              _initial,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const _VerifiedBadge(),
+                const SizedBox(height: 8),
+                Text(
+                  'Partner ID  •  $_walkerId',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: DojoPartnerTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openPersonalDetails() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              4,
+              20,
+              24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Personal Details',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _DetailRow(
+                  icon: Icons.person_outline,
+                  title: 'Full Name',
+                  value: _fullName,
+                ),
+                const SizedBox(height: 14),
+                _DetailRow(
+                  icon: Icons.phone_outlined,
+                  title: 'Mobile Number',
+                  value: _phone.isEmpty ? 'Not available' : _phone,
+                ),
+                const SizedBox(height: 14),
+                _DetailRow(
+                  icon: Icons.badge_outlined,
+                  title: 'Partner ID',
+                  value: _walkerId,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openBankDetails() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const BankDetailsScreen(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    await _loadProfile();
+  }
+
+  void _showComingSoon(
+    BuildContext context,
+    String title,
+    String message,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAboutDialog() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'DOJO Partner',
+      applicationVersion: '1.0.0',
+      applicationLegalese: '© DOJO',
+      children: const [
+        SizedBox(height: 12),
+        Text(
+          'DOJO Partner helps verified walkers manage their work, walks, schedules and earnings.',
+        ),
+      ],
     );
   }
 
@@ -201,8 +509,31 @@ class ProfileScreen extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(dialogContext);
+
+                try {
+                  await FirebaseAuth.instance.signOut();
+
+                  if (!mounted) return;
+
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(
+                      builder: (_) => const MobileLoginScreen(),
+                    ),
+                    (route) => false,
+                  );
+                } catch (_) {
+                  if (!mounted) return;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Logout failed. Please try again.',
+                      ),
+                    ),
+                  );
+                }
               },
               child: const Text(
                 'Logout',
@@ -219,6 +550,27 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+  });
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.8,
+        color: DojoPartnerTheme.textSecondary,
+      ),
+    );
+  }
+}
+
 class _VerifiedBadge extends StatelessWidget {
   const _VerifiedBadge();
 
@@ -226,8 +578,8 @@ class _VerifiedBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
+        horizontal: 9,
+        vertical: 5,
       ),
       decoration: BoxDecoration(
         color: const Color(0xFFEAF8EE),
@@ -238,14 +590,14 @@ class _VerifiedBadge extends StatelessWidget {
         children: [
           Icon(
             Icons.verified,
-            size: 16,
+            size: 15,
             color: Colors.green,
           ),
           SizedBox(width: 5),
           Text(
             'Verified Partner',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
               color: Colors.green,
             ),
@@ -288,15 +640,13 @@ class _ProfileItem extends StatelessWidget {
           const SizedBox(width: 14),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
                   style: const TextStyle(
                     fontSize: 12,
-                    color:
-                        DojoPartnerTheme.textSecondary,
+                    color: DojoPartnerTheme.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -320,11 +670,13 @@ class _ActionItem extends StatelessWidget {
   const _ActionItem({
     required this.icon,
     required this.title,
+    required this.subtitle,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
+  final String subtitle;
   final VoidCallback onTap;
 
   @override
@@ -340,6 +692,10 @@ class _ActionItem extends StatelessWidget {
       ),
       child: ListTile(
         onTap: onTap,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 3,
+        ),
         leading: Icon(
           icon,
           color: DojoPartnerTheme.primaryOrange,
@@ -350,11 +706,65 @@ class _ActionItem extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(
+            fontSize: 12,
+            color: DojoPartnerTheme.textSecondary,
+          ),
+        ),
         trailing: const Icon(
           Icons.chevron_right,
           color: DojoPartnerTheme.textSecondary,
         ),
       ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          icon,
+          color: DojoPartnerTheme.primaryOrange,
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: DojoPartnerTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
