@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "177087606182",
+    "project_id": "dojo-platform-b68a3",
+    "storage_bucket": "dojo-platform-b68a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177087606182:android:e99afa0d66ae949e683367",
+        "android_client_info": {
+          "package_name": "com.dojo.dojo_walk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMP8ktWud8Dzndy6ZWuz28FJnBSHH_EnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177087606182:android:b966137e588d24dd683367",
+        "android_client_info": {
+          "package_name": "com.dojo.dojo_walker_registration"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMP8ktWud8Dzndy6ZWuz28FJnBSHH_EnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:177087606182:android:3996445d411620e5683367",
+        "android_client_info": {
+          "package_name": "com.example.dojo_partner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMP8ktWud8Dzndy6ZWuz28FJnBSHH_EnA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
