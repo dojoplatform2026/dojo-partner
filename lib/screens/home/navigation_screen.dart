@@ -6,11 +6,13 @@ import 'live_walk_screen.dart';
 class NavigationScreen extends StatelessWidget {
   const NavigationScreen({
     super.key,
+    required this.time,
     required this.dogName,
     required this.location,
     required this.duration,
   });
 
+  final String time;
   final String dogName;
   final String location;
   final String duration;
@@ -41,6 +43,7 @@ class NavigationScreen extends StatelessWidget {
             ),
           ),
 
+          // Pickup information
           Positioned(
             top: 20,
             left: 20,
@@ -62,7 +65,8 @@ class NavigationScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
                       children: [
                         Text(
                           dogName,
@@ -75,7 +79,18 @@ class NavigationScreen extends StatelessWidget {
                         Text(
                           'Pickup • $location',
                           style: const TextStyle(
-                            color: DojoPartnerTheme.textSecondary,
+                            color:
+                                DojoPartnerTheme.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          time,
+                          style: const TextStyle(
+                            color:
+                                DojoPartnerTheme.primaryOrange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -86,6 +101,7 @@ class NavigationScreen extends StatelessWidget {
             ),
           ),
 
+          // Bottom action
           Positioned(
             left: 20,
             right: 20,
@@ -106,7 +122,8 @@ class NavigationScreen extends StatelessWidget {
                       children: [
                         Icon(
                           Icons.location_on,
-                          color: DojoPartnerTheme.primaryOrange,
+                          color:
+                              DojoPartnerTheme.primaryOrange,
                         ),
                         SizedBox(width: 10),
                         Expanded(
@@ -120,9 +137,7 @@ class NavigationScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-
                     const SizedBox(height: 14),
-
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -131,6 +146,7 @@ class NavigationScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) => LiveWalkScreen(
+                                time: time,
                                 dogName: dogName,
                                 location: location,
                                 duration: duration,
@@ -138,7 +154,9 @@ class NavigationScreen extends StatelessWidget {
                             ),
                           );
                         },
-                        child: const Text('Start Walk'),
+                        child: const Text(
+                          'Start Walk',
+                        ),
                       ),
                     ),
                   ],
