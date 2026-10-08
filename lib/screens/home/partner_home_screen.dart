@@ -1,9 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
+import 'walk_details_screen.dart';
 
 class PartnerHomeScreen extends StatelessWidget {
   const PartnerHomeScreen({super.key});
+
+  void _openWalkDetails(
+    BuildContext context, {
+    required String time,
+    required String dogName,
+    required String type,
+    required String duration,
+    required String location,
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WalkDetailsScreen(
+          time: time,
+          dogName: dogName,
+          type: type,
+          duration: duration,
+          location: location,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +126,16 @@ class PartnerHomeScreen extends StatelessWidget {
               type: 'Regular Walk',
               duration: '60 min',
               location: 'Civil Lines',
+              onTap: () {
+                _openWalkDetails(
+                  context,
+                  time: '07:00 AM',
+                  dogName: 'Bruno',
+                  type: 'Regular Walk',
+                  duration: '60 min',
+                  location: 'Civil Lines',
+                );
+              },
             ),
 
             const SizedBox(height: 12),
@@ -113,6 +146,16 @@ class PartnerHomeScreen extends StatelessWidget {
               type: 'Regular Walk',
               duration: '60 min',
               location: 'Civil Lines',
+              onTap: () {
+                _openWalkDetails(
+                  context,
+                  time: '06:00 PM',
+                  dogName: 'Bruno',
+                  type: 'Regular Walk',
+                  duration: '60 min',
+                  location: 'Civil Lines',
+                );
+              },
             ),
           ],
         ),
@@ -155,6 +198,7 @@ class _WalkCard extends StatelessWidget {
     required this.type,
     required this.duration,
     required this.location,
+    required this.onTap,
   });
 
   final String time;
@@ -162,77 +206,90 @@ class _WalkCard extends StatelessWidget {
   final String type;
   final String duration;
   final String location;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFEAEAEA),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: DojoPartnerTheme.primaryOrange,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFEAEAEA),
             ),
           ),
-
-          const SizedBox(height: 12),
-
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CircleAvatar(
-                radius: 24,
-                child: Icon(Icons.pets),
-              ),
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      dogName,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$type • $duration',
-                      style: const TextStyle(
-                        color: DojoPartnerTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      location,
-                      style: const TextStyle(
-                        color: DojoPartnerTheme.textSecondary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: DojoPartnerTheme.primaryOrange,
                 ),
               ),
 
-              const Icon(
-                Icons.chevron_right,
-                color: DojoPartnerTheme.textSecondary,
+              const SizedBox(height: 12),
+
+              Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 24,
+                    child: Icon(Icons.pets),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          dogName,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          '$type • $duration',
+                          style: const TextStyle(
+                            color: DojoPartnerTheme.textSecondary,
+                          ),
+                        ),
+
+                        const SizedBox(height: 3),
+
+                        Text(
+                          location,
+                          style: const TextStyle(
+                            color: DojoPartnerTheme.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons.chevron_right,
+                    color: DojoPartnerTheme.textSecondary,
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
