@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../theme.dart';
+import 'customer_otp_sheet.dart';
 import 'walk_summary_screen.dart';
 
 class LiveWalkScreen extends StatefulWidget {
@@ -342,26 +343,38 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     setState(() {
       _showReturnPanel = true;
+      _returnLocationChecked = false;
     });
 
     await _checkReturnLocation();
   }
 
   Future<void> _checkReturnLocation() async {
-    if (_returnLocationChecked) return;
+    if (!mounted || _isEnding) return;
 
-    final currentPosition = _lastPosition;
+    setState(() {
+      _returnLocationChecked = false;
+    });
+
+    var currentPosition = _lastPosition;
 
     if (currentPosition == null) {
       try {
-        final position =
-            await Geolocator.getCurrentPosition();
+        currentPosition = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        );
 
         if (!mounted) return;
 
-        _lastPosition = position;
+        _lastPosition = currentPosition;
       } catch (_) {
         if (!mounted) return;
+
+        setState(() {
+          _returnLocationChecked = true;
+        });
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -377,10 +390,6 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     if (!mounted) return;
 
-    final current = _lastPosition;
-
-    if (current == null) return;
-
     if (_customerLatitude == null ||
         _customerLongitude == null) {
       setState(() {
@@ -392,8 +401,8 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     }
 
     final distance = Geolocator.distanceBetween(
-      current.latitude,
-      current.longitude,
+      currentPosition.latitude,
+      currentPosition.longitude,
       _customerLatitude!,
       _customerLongitude!,
     );
@@ -416,39 +425,47 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     if (_isEnding || !_dogReturned) return;
 
     if (!_sameReturnLocation) {
-      _showOtpRequiredDialog();
+      await _showCustomerOtpSheet();
       return;
     }
 
     await _endWalk();
   }
 
-  void _showOtpRequiredDialog() {
-    showDialog<void>(
+  Future<void> _showCustomerOtpSheet() async {
+    final bookingId = widget.bookingId;
+
+    if (bookingId == null || bookingId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Booking information is unavailable.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final verified = await showModalBottomSheet<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Customer OTP Required',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          content: const Text(
-            'You are not at the customer return location. '
-            'Customer OTP verification is required before the walk can be completed.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Close'),
-            ),
-          ],
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (_) {
+        return CustomerOtpSheet(
+          bookingId: bookingId,
+          dogName: widget.dogName,
         );
       },
     );
+
+    if (verified == true && mounted) {
+      await _endWalk();
+    }
   }
 
   Future<void> _endWalk() async {
@@ -624,21 +641,18 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
               20,
             ),
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _DogHeader(
                   dogName: widget.dogName,
                   duration: widget.duration,
                 ),
                 const SizedBox(height: 12),
-
                 _LiveMap(
                   route: _route,
                   tracking: _locationTracking,
                 ),
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Expanded(
@@ -656,9 +670,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 12),
-
                 _WalkNotesCard(
                   peeCount: _peeCount,
                   poopCount: _poopCount,
@@ -667,9 +679,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                   onPeeMinus: _decreasePee,
                   onPoopMinus: _decreasePoop,
                 ),
-
                 const SizedBox(height: 12),
-
                 Row(
                   children: [
                     Icon(
@@ -696,9 +706,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 16),
-
                 if (!_showReturnPanel)
                   _ReturnToCustomerButton(
                     enabled: !_isEnding,
@@ -707,17 +715,13 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                 else
                   _ReturnCustomerPanel(
                     dogName: widget.dogName,
-                    checkingLocation:
-                        !_returnLocationChecked,
+                    checkingLocation: !_returnLocationChecked,
                     sameLocation: _sameReturnLocation,
                     dogReturned: _dogReturned,
                     ending: _isEnding,
-                    onRefreshLocation:
-                        _checkReturnLocation,
-                    onDogReturned:
-                        _markDogReturned,
-                    onComplete:
-                        _confirmEndWalk,
+                    onRefreshLocation: _checkReturnLocation,
+                    onDogReturned: _markDogReturned,
+                    onComplete: _confirmEndWalk,
                   ),
               ],
             ),
@@ -752,8 +756,7 @@ class _DogHeader extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 dogName,
@@ -769,8 +772,7 @@ class _DogHeader extends StatelessWidget {
                 'Regular Walk • $duration',
                 style: const TextStyle(
                   fontSize: 13,
-                  color:
-                      DojoPartnerTheme.textSecondary,
+                  color: DojoPartnerTheme.textSecondary,
                 ),
               ),
             ],
@@ -816,23 +818,19 @@ class _LiveMap extends StatelessWidget {
             top: 12,
             left: 12,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(
+              padding: const EdgeInsets.symmetric(
                 horizontal: 10,
                 vertical: 7,
               ),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color:
-                      const Color(0xFFE5E5E5),
+                  color: const Color(0xFFE5E5E5),
                 ),
               ),
               child: Row(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     tracking
@@ -845,13 +843,10 @@ class _LiveMap extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    tracking
-                        ? 'LIVE GPS'
-                        : 'GPS OFF',
+                    tracking ? 'LIVE GPS' : 'GPS OFF',
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight:
-                          FontWeight.w800,
+                      fontWeight: FontWeight.w800,
                       color: tracking
                           ? Colors.green
                           : Colors.red,
@@ -922,14 +917,10 @@ class _RoutePainter extends CustomPainter {
       return;
     }
 
-    double minLat =
-        route.first.latitude;
-    double maxLat =
-        route.first.latitude;
-    double minLng =
-        route.first.longitude;
-    double maxLng =
-        route.first.longitude;
+    double minLat = route.first.latitude;
+    double maxLat = route.first.latitude;
+    double minLng = route.first.longitude;
+    double maxLng = route.first.longitude;
 
     for (final position in route) {
       minLat = math.min(
@@ -950,56 +941,39 @@ class _RoutePainter extends CustomPainter {
       );
     }
 
-    final latRange =
-        maxLat - minLat;
-    final lngRange =
-        maxLng - minLng;
+    final latRange = maxLat - minLat;
+    final lngRange = maxLng - minLng;
 
-    final paddedLatRange =
-        latRange == 0
-            ? 0.001
-            : latRange * 1.25;
+    final paddedLatRange = latRange == 0
+        ? 0.001
+        : latRange * 1.25;
 
-    final paddedLngRange =
-        lngRange == 0
-            ? 0.001
-            : lngRange * 1.25;
+    final paddedLngRange = lngRange == 0
+        ? 0.001
+        : lngRange * 1.25;
 
-    final centerLat =
-        (minLat + maxLat) / 2;
-    final centerLng =
-        (minLng + maxLng) / 2;
+    final centerLat = (minLat + maxLat) / 2;
+    final centerLng = (minLng + maxLng) / 2;
 
     final scale = math.min(
-      (size.width - 70) /
-          paddedLngRange,
-      (size.height - 70) /
-          paddedLatRange,
+      (size.width - 70) / paddedLngRange,
+      (size.height - 70) / paddedLatRange,
     );
 
-    Offset project(
-      Position position,
-    ) {
+    Offset project(Position position) {
       final x = size.width / 2 +
-          (position.longitude -
-                  centerLng) *
-              scale;
+          (position.longitude - centerLng) * scale;
 
       final y = size.height / 2 -
-          (position.latitude -
-                  centerLat) *
-              scale;
+          (position.latitude - centerLat) * scale;
 
       return Offset(x, y);
     }
 
     final path = Path();
 
-    for (var i = 0;
-        i < route.length;
-        i++) {
-      final point =
-          project(route[i]);
+    for (var i = 0; i < route.length; i++) {
+      final point = project(route[i]);
 
       if (i == 0) {
         path.moveTo(
@@ -1029,8 +1003,7 @@ class _RoutePainter extends CustomPainter {
     );
 
     final routePaint = Paint()
-      ..color =
-          DojoPartnerTheme.primaryOrange
+      ..color = DojoPartnerTheme.primaryOrange
       ..strokeWidth = 5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -1060,9 +1033,7 @@ class _RoutePainter extends CustomPainter {
       ..color = Colors.white
       ..strokeWidth = 1;
 
-    for (var x = 0.0;
-        x < size.width;
-        x += 55) {
+    for (var x = 0.0; x < size.width; x += 55) {
       canvas.drawLine(
         Offset(x, 0),
         Offset(
@@ -1073,9 +1044,7 @@ class _RoutePainter extends CustomPainter {
       );
     }
 
-    for (var y = 25.0;
-        y < size.height;
-        y += 58) {
+    for (var y = 25.0; y < size.height; y += 58) {
       canvas.drawLine(
         Offset(0, y),
         Offset(
@@ -1087,18 +1056,12 @@ class _RoutePainter extends CustomPainter {
     }
 
     final blockPaint = Paint()
-      ..color =
-          const Color(0xFFE8EAEA)
-      ..style =
-          PaintingStyle.stroke
+      ..color = const Color(0xFFE8EAEA)
+      ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
-    for (var x = 25.0;
-        x < size.width;
-        x += 105) {
-      for (var y = 35.0;
-          y < size.height;
-          y += 95) {
+    for (var x = 25.0; x < size.width; x += 105) {
+      for (var y = 35.0; y < size.height; y += 95) {
         canvas.drawRect(
           Rect.fromLTWH(
             x,
@@ -1117,8 +1080,7 @@ class _RoutePainter extends CustomPainter {
     Offset point,
   ) {
     final paint = Paint()
-      ..color =
-          const Color(0xFF333333);
+      ..color = const Color(0xFF333333);
 
     canvas.drawCircle(
       point,
@@ -1152,8 +1114,7 @@ class _RoutePainter extends CustomPainter {
     );
 
     final outer = Paint()
-      ..color =
-          DojoPartnerTheme.primaryOrange;
+      ..color = DojoPartnerTheme.primaryOrange;
 
     canvas.drawCircle(
       point,
@@ -1175,10 +1136,8 @@ class _RoutePainter extends CustomPainter {
   bool shouldRepaint(
     covariant _RoutePainter oldDelegate,
   ) {
-    return oldDelegate.route.length !=
-            route.length ||
-        oldDelegate.tracking !=
-            tracking;
+    return oldDelegate.route.length != route.length ||
+        oldDelegate.tracking != tracking;
   }
 }
 
@@ -1192,22 +1151,17 @@ class _MetricCard extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: 12,
         vertical: 15,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color:
-              const Color(0xFFEAEAEA),
+          color: const Color(0xFFEAEAEA),
         ),
       ),
       child: Column(
@@ -1224,9 +1178,7 @@ class _MetricCard extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 12,
-              color:
-                  DojoPartnerTheme
-                      .textSecondary,
+              color: DojoPartnerTheme.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1254,12 +1206,9 @@ class _WalkNotesCard extends StatelessWidget {
   final VoidCallback onPoopMinus;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.fromLTRB(
+      padding: const EdgeInsets.fromLTRB(
         14,
         13,
         14,
@@ -1267,16 +1216,13 @@ class _WalkNotesCard extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color:
-              const Color(0xFFEAEAEA),
+          color: const Color(0xFFEAEAEA),
         ),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Walk Notes',
@@ -1331,24 +1277,19 @@ class _NoteControl extends StatelessWidget {
   final VoidCallback onMinus;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color:
-            const Color(0xFFF8F8F8),
-        borderRadius:
-            BorderRadius.circular(12),
+        color: const Color(0xFFF8F8F8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
           const SizedBox(width: 10),
           Text(
             emoji,
-            style:
-                const TextStyle(
+            style: const TextStyle(
               fontSize: 19,
             ),
           ),
@@ -1356,40 +1297,29 @@ class _NoteControl extends StatelessWidget {
           Expanded(
             child: Text(
               '$label $count',
-              style:
-                  const TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
-                fontWeight:
-                    FontWeight.w700,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
           IconButton(
-            onPressed:
-                count > 0
-                    ? onMinus
-                    : null,
-            icon:
-                const Icon(
+            onPressed: count > 0 ? onMinus : null,
+            icon: const Icon(
               Icons.remove,
               size: 18,
             ),
-            tooltip:
-                'Decrease $label',
-            visualDensity:
-                VisualDensity.compact,
+            tooltip: 'Decrease $label',
+            visualDensity: VisualDensity.compact,
           ),
           IconButton(
             onPressed: onAdd,
-            icon:
-                const Icon(
+            icon: const Icon(
               Icons.add,
               size: 18,
             ),
-            tooltip:
-                'Add $label',
-            visualDensity:
-                VisualDensity.compact,
+            tooltip: 'Add $label',
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),
@@ -1397,8 +1327,7 @@ class _NoteControl extends StatelessWidget {
   }
 }
 
-class _ReturnToCustomerButton
-    extends StatelessWidget {
+class _ReturnToCustomerButton extends StatelessWidget {
   const _ReturnToCustomerButton({
     required this.enabled,
     required this.onPressed,
@@ -1408,15 +1337,12 @@ class _ReturnToCustomerButton
   final VoidCallback onPressed;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       height: 58,
       child: ElevatedButton.icon(
-        onPressed:
-            enabled ? onPressed : null,
+        onPressed: enabled ? onPressed : null,
         icon: const Icon(
           Icons.location_on_outlined,
         ),
@@ -1428,8 +1354,7 @@ class _ReturnToCustomerButton
   }
 }
 
-class _ReturnCustomerPanel
-    extends StatelessWidget {
+class _ReturnCustomerPanel extends StatelessWidget {
   const _ReturnCustomerPanel({
     required this.dogName,
     required this.checkingLocation,
@@ -1447,32 +1372,24 @@ class _ReturnCustomerPanel
   final bool dogReturned;
   final bool ending;
 
-  final Future<void> Function()
-      onRefreshLocation;
+  final Future<void> Function() onRefreshLocation;
   final VoidCallback onDogReturned;
-  final Future<void> Function()
-      onComplete;
+  final Future<void> Function() onComplete;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color:
-              const Color(0xFFEAEAEA),
+          color: const Color(0xFFEAEAEA),
         ),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Return to Customer',
@@ -1485,67 +1402,49 @@ class _ReturnCustomerPanel
           Text(
             'Return $dogName safely to the customer.',
             style: const TextStyle(
-              color:
-                  DojoPartnerTheme
-                      .textSecondary,
+              color: DojoPartnerTheme.textSecondary,
               fontSize: 13,
             ),
           ),
           const SizedBox(height: 14),
-
           if (checkingLocation)
             const Row(
               children: [
                 SizedBox(
                   width: 18,
                   height: 18,
-                  child:
-                      CircularProgressIndicator(
+                  child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color:
-                        DojoPartnerTheme
-                            .primaryOrange,
+                    color: DojoPartnerTheme.primaryOrange,
                   ),
                 ),
                 SizedBox(width: 10),
                 Text(
                   'Checking return location...',
                   style: TextStyle(
-                    fontWeight:
-                        FontWeight.w600,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             )
           else
             Container(
-              padding:
-                  const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: sameLocation
-                    ? const Color(
-                        0xFFEAF8EE,
-                      )
-                    : const Color(
-                        0xFFFFF1E8,
-                      ),
-                borderRadius:
-                    BorderRadius.circular(
-                  12,
-                ),
+                    ? const Color(0xFFEAF8EE)
+                    : const Color(0xFFFFF1E8),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
                   Icon(
                     sameLocation
-                        ? Icons
-                            .check_circle
-                        : Icons
-                            .location_off,
+                        ? Icons.check_circle
+                        : Icons.location_off,
                     color: sameLocation
                         ? Colors.green
-                        : DojoPartnerTheme
-                            .primaryOrange,
+                        : DojoPartnerTheme.primaryOrange,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1553,42 +1452,35 @@ class _ReturnCustomerPanel
                       sameLocation
                           ? 'You are at the customer return location.'
                           : 'You are away from the customer location. Customer OTP is required.',
-                      style:
-                          const TextStyle(
+                      style: const TextStyle(
                         fontSize: 13,
-                        fontWeight:
-                            FontWeight.w700,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-
           const SizedBox(height: 12),
-
-          OutlinedButton.icon(
-            onPressed: ending
-                ? null
-                : onRefreshLocation,
-            icon: const Icon(
-              Icons.refresh,
-            ),
-            label: const Text(
-              'Check Location Again',
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: ending ? null : onRefreshLocation,
+              icon: const Icon(
+                Icons.refresh,
+              ),
+              label: const Text(
+                'Check Location Again',
+              ),
             ),
           ),
-
           const SizedBox(height: 10),
-
           if (!dogReturned)
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: ending
-                    ? null
-                    : onDogReturned,
+                onPressed: ending ? null : onDogReturned,
                 icon: const Icon(
                   Icons.pets,
                 ),
@@ -1602,27 +1494,18 @@ class _ReturnCustomerPanel
               children: [
                 Container(
                   width: double.infinity,
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 14,
                     vertical: 12,
                   ),
-                  decoration:
-                      BoxDecoration(
-                    color: const Color(
-                      0xFFEAF8EE,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(
-                      12,
-                    ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF8EE),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Row(
                     children: [
                       Icon(
-                        Icons
-                            .check_circle,
+                        Icons.check_circle,
                         color: Colors.green,
                       ),
                       SizedBox(width: 9),
@@ -1630,10 +1513,8 @@ class _ReturnCustomerPanel
                         child: Text(
                           'Dog Returned successfully.',
                           style: TextStyle(
-                            fontWeight:
-                                FontWeight.w800,
-                            color:
-                                Colors.green,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.green,
                           ),
                         ),
                       ),
@@ -1641,30 +1522,37 @@ class _ReturnCustomerPanel
                   ),
                 ),
                 const SizedBox(height: 12),
-                _SlideToEnd(
-                  enabled:
-                      !ending &&
-                      sameLocation,
-                  onCompleted:
-                      onComplete,
-                ),
+                if (sameLocation)
+                  _SlideToEnd(
+                    enabled: !ending,
+                    onCompleted: onComplete,
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: ending ? null : onComplete,
+                      icon: const Icon(
+                        Icons.verified_user_outlined,
+                      ),
+                      label: const Text(
+                        'Verify Customer OTP',
+                      ),
+                    ),
+                  ),
                 if (!sameLocation)
                   const Padding(
-                    padding:
-                        EdgeInsets.only(
+                    padding: EdgeInsets.only(
                       top: 10,
                     ),
                     child: Text(
-                      'Customer OTP verification is required because the return location does not match.',
-                      textAlign:
-                          TextAlign.center,
+                      'Customer OTP is required because the return location does not match.',
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight:
-                            FontWeight.w600,
-                        color:
-                            DojoPartnerTheme
-                                .textSecondary,
+                        fontWeight: FontWeight.w600,
+                        color: DojoPartnerTheme.textSecondary,
                       ),
                     ),
                   ),
@@ -1676,37 +1564,29 @@ class _ReturnCustomerPanel
   }
 }
 
-class _SlideToEnd
-    extends StatefulWidget {
+class _SlideToEnd extends StatefulWidget {
   const _SlideToEnd({
     required this.enabled,
     required this.onCompleted,
   });
 
   final bool enabled;
-  final Future<void> Function()
-      onCompleted;
+  final Future<void> Function() onCompleted;
 
   @override
-  State<_SlideToEnd> createState() =>
-      _SlideToEndState();
+  State<_SlideToEnd> createState() => _SlideToEndState();
 }
 
-class _SlideToEndState
-    extends State<_SlideToEnd> {
+class _SlideToEndState extends State<_SlideToEnd> {
   double _value = 0;
   bool _completed = false;
 
-  void _onChanged(
-    double value,
-  ) {
-    if (!widget.enabled ||
-        _completed) {
+  void _onChanged(double value) {
+    if (!widget.enabled || _completed) {
       return;
     }
 
-    final safeValue =
-        value.clamp(0.0, 1.0);
+    final safeValue = value.clamp(0.0, 1.0);
 
     setState(() {
       _value = safeValue;
@@ -1732,114 +1612,76 @@ class _SlideToEndState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
+    final containerWidth =
+        MediaQuery.of(context).size.width - 32;
+
+    final maxLeft =
+        math.max(0.0, containerWidth - 60);
+
     return GestureDetector(
-      onHorizontalDragUpdate:
-          widget.enabled
-              ? (details) {
-                  final width =
-                      MediaQuery.of(
-                    context,
-                  ).size.width -
-                          32;
+      onHorizontalDragUpdate: widget.enabled
+          ? (details) {
+              if (containerWidth <= 0) return;
 
-                  if (width <= 0) return;
+              final next = _value +
+                  details.delta.dx / containerWidth;
 
-                  final next =
-                      _value +
-                          details.delta.dx /
-                              width;
-
-                  _onChanged(next);
-                }
-              : null,
-      onHorizontalDragEnd:
-          widget.enabled
-              ? (_) {
-                  if (_value <
-                      0.92) {
-                    _reset();
-                  }
-                }
-              : null,
+              _onChanged(next);
+            }
+          : null,
+      onHorizontalDragEnd: widget.enabled
+          ? (_) {
+              if (_value < 0.92) {
+                _reset();
+              }
+            }
+          : null,
       child: Container(
         height: 60,
-        decoration:
-            BoxDecoration(
-          color:
-              const Color(0xFFFFF1E8),
-          borderRadius:
-              BorderRadius.circular(
-            16,
-          ),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1E8),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color:
-                const Color(0xFFFFD8BF),
+            color: const Color(0xFFFFD8BF),
           ),
         ),
         child: Stack(
-          alignment:
-              Alignment.centerLeft,
+          alignment: Alignment.centerLeft,
           children: [
             Center(
-              child:
-                  AnimatedOpacity(
-                duration:
-                    const Duration(
+              child: AnimatedOpacity(
+                duration: const Duration(
                   milliseconds: 100,
                 ),
-                opacity:
-                    _value > 0.25
-                        ? 0
-                        : 1,
-                child:
-                    const Text(
+                opacity: _value > 0.25 ? 0 : 1,
+                child: const Text(
                   'Slide to End Walk  →',
-                  style:
-                      TextStyle(
-                    color:
-                        DojoPartnerTheme
-                            .primaryOrange,
-                    fontWeight:
-                        FontWeight.w800,
+                  style: TextStyle(
+                    color: DojoPartnerTheme.primaryOrange,
+                    fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
               ),
             ),
             Positioned(
-              left: 4 +
-                  _value *
-                      (MediaQuery.of(
-                            context,
-                          ).size.width -
-                          32 -
-                          60),
+              left: 4 + _value * maxLeft,
               top: 4,
               child: Container(
                 width: 52,
                 height: 52,
-                decoration:
-                    BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
-                  shape:
-                      BoxShape.circle,
-                  border:
-                      Border.all(
-                    color:
-                        DojoPartnerTheme
-                            .primaryOrange,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: DojoPartnerTheme.primaryOrange,
                     width: 2,
                   ),
                 ),
                 child: const Icon(
-                  Icons
-                      .arrow_forward_rounded,
-                  color:
-                      DojoPartnerTheme
-                          .primaryOrange,
+                  Icons.arrow_forward_rounded,
+                  color: DojoPartnerTheme.primaryOrange,
                 ),
               ),
             ),
