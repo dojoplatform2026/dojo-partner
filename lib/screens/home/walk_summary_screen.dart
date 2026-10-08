@@ -25,278 +25,110 @@ class WalkSummaryScreen extends StatelessWidget {
   final int peeCount;
   final int poopCount;
 
-  String _formatDuration() {
-    final minutes = durationSeconds ~/ 60;
-    final seconds = durationSeconds % 60;
-
-    if (minutes == 0) {
-      return '$seconds sec';
-    }
-
-    if (seconds == 0) {
-      return '$minutes min';
-    }
-
-    return '$minutes min $seconds sec';
-  }
-
-  String _formatDistance() {
-    return '${distanceKm.toStringAsFixed(2)} km';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DojoPartnerTheme.background,
-      appBar: AppBar(
-        title: const Text(
-          'Walk Report',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 4),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Spacer(),
 
+              Container(
+                width: 82,
+                height: 82,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE8F5E9),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_rounded,
+                  color: Color(0xFF2E7D32),
+                  size: 48,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              const Text(
+                'Walk Completed',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: DojoPartnerTheme.textPrimary,
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              Text(
+                '$dogName’s walk has been completed successfully.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: DojoPartnerTheme.textSecondary,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFE8E8E8),
+                  ),
+                ),
+                child: Column(
+                  children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFE8F5E9),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.check,
-                            color: Color(0xFF2E7D32),
-                            size: 20,
-                          ),
+                        const Icon(
+                          Icons.pets,
+                          size: 20,
+                          color: DojoPartnerTheme.primaryOrange,
                         ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Completed',
-                          style: TextStyle(
+                        const SizedBox(width: 8),
+                        Text(
+                          dogName,
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 24),
-
-                    Column(
-                      children: [
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: BoxDecoration(
-                            color: DojoPartnerTheme.primaryOrange
-                                .withValues(alpha: 0.10),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.pets,
-                            color: DojoPartnerTheme.primaryOrange,
-                            size: 30,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          dogName,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          walkType,
-                          style: const TextStyle(
-                            color: DojoPartnerTheme.textSecondary,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Earning
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 20,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFFE8E8E8),
-                        ),
-                      ),
-                      child: const Column(
-                        children: [
-                          Text(
-                            '₹ —',
-                            style: TextStyle(
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              color: DojoPartnerTheme.primaryOrange,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Earning not calculated yet',
-                            style: TextStyle(
-                              color: DojoPartnerTheme.textSecondary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 8),
+                    Text(
+                      walkType,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: DojoPartnerTheme.textSecondary,
                       ),
                     ),
-
-                    const SizedBox(height: 20),
-
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: const Color(0xFFE8E8E8),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          _InfoRow(
-                            icon: Icons.access_time_rounded,
-                            text: scheduledTime,
-                          ),
-                          const SizedBox(height: 14),
-                          _InfoRow(
-                            icon: Icons.timer_outlined,
-                            text:
-                                '${_formatDuration()}  •  ${_formatDistance()}',
-                          ),
-                          const SizedBox(height: 14),
-                          _InfoRow(
-                            icon: Icons.location_on_outlined,
-                            text: location,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    if (peeCount > 0 || poopCount > 0) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: const Color(0xFFE8E8E8),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              '🐾 Walk Notes',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                if (peeCount > 0)
-                                  Expanded(
-                                    child: Text(
-                                      '💧 Pee × $peeCount',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                if (poopCount > 0)
-                                  Expanded(
-                                    child: Text(
-                                      '💩 Poop × $poopCount',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    const SizedBox(height: 16),
-
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.pets,
-                            color: Color(0xFF2E7D32),
-                            size: 22,
-                          ),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Dog returned',
-                              style: TextStyle(
-                                color: Color(0xFF1B5E20),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                          Icon(
-                            Icons.check_circle,
-                            color: Color(0xFF2E7D32),
-                            size: 21,
-                          ),
-                        ],
+                    const SizedBox(height: 4),
+                    Text(
+                      location,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: DojoPartnerTheme.textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-              child: SizedBox(
+              const Spacer(),
+
+              SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
@@ -308,46 +140,13 @@ class WalkSummaryScreen extends StatelessWidget {
                       (route) => false,
                     );
                   },
-                  child: const Text('Continue to Home'),
+                  child: const Text('Continue'),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.text,
-  });
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          icon,
-          size: 20,
-          color: DojoPartnerTheme.textSecondary,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
