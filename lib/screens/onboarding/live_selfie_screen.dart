@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
-import 'bank_details_screen.dart';
+import 'review_submit_screen.dart';
 
 class LiveSelfieScreen extends StatefulWidget {
   const LiveSelfieScreen({super.key});
@@ -54,7 +54,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const BankDetailsScreen(),
+          builder: (_) => const ReviewSubmitScreen(),
         ),
       );
     } on FirebaseException catch (e) {
