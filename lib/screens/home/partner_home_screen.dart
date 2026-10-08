@@ -67,15 +67,15 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         final walkerId = data['walkerId'];
 
         setState(() {
-          _fullName = fullName is String &&
-                  fullName.trim().isNotEmpty
-              ? fullName.trim()
-              : 'Partner';
+          _fullName =
+              fullName is String && fullName.trim().isNotEmpty
+                  ? fullName.trim()
+                  : 'Partner';
 
-          _partnerId = walkerId is String &&
-                  walkerId.trim().isNotEmpty
-              ? walkerId.trim()
-              : 'DOJO-W-00124';
+          _partnerId =
+              walkerId is String && walkerId.trim().isNotEmpty
+                  ? walkerId.trim()
+                  : 'DOJO-W-00124';
 
           _bankAdded = bank is Map &&
               bank['status'] != null &&
@@ -289,7 +289,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     );
   }
 
-  String _formatBookingTime(Map<String, dynamic> booking) {
+  String _formatBookingTime(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['startTime'];
 
     DateTime? date;
@@ -310,13 +312,19 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
         ? 12
         : date.hour % 12;
 
-    final minute = date.minute.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(
+          2,
+          '0',
+        );
+
     final period = date.hour >= 12 ? 'PM' : 'AM';
 
     return '$hour:$minute $period';
   }
 
-  String _bookingDogName(Map<String, dynamic> booking) {
+  String _bookingDogName(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['dogName'];
 
     if (value is String && value.trim().isNotEmpty) {
@@ -336,7 +344,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     return 'Dog';
   }
 
-  String _bookingType(Map<String, dynamic> booking) {
+  String _bookingType(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['type'];
 
     if (value is String && value.trim().isNotEmpty) {
@@ -357,7 +367,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     return 'Walk';
   }
 
-  String _bookingDuration(Map<String, dynamic> booking) {
+  String _bookingDuration(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['duration'];
 
     if (value is int) {
@@ -385,7 +397,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     return 'Duration not set';
   }
 
-  int _durationMinutes(Map<String, dynamic> booking) {
+  int _durationMinutes(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['duration'];
 
     if (value is num) {
@@ -403,7 +417,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     return 0;
   }
 
-  String _bookingLocation(Map<String, dynamic> booking) {
+  String _bookingLocation(
+    Map<String, dynamic> booking,
+  ) {
     final value = booking['pickupAddress'];
 
     if (value is String && value.trim().isNotEmpty) {
@@ -425,7 +441,9 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     return 'Pickup location not set';
   }
 
-  Future<void> _loadLatestCompletedWalk(String uid) async {
+  Future<void> _loadLatestCompletedWalk(
+    String uid,
+  ) async {
     try {
       final snapshot = await FirebaseFirestore.instance
           .collection('walks')
@@ -512,6 +530,7 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
           type: _bookingType(booking),
           duration: _bookingDuration(booking),
           location: _bookingLocation(booking),
+          bookingId: booking['bookingId']?.toString(),
         ),
       ),
     );
@@ -627,6 +646,8 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
       // Keep the prompt hidden locally even if the write fails.
     }
 
+    if (!mounted) return;
+
     setState(() {
       _showReviewPrompt = false;
     });
@@ -646,9 +667,11 @@ class _PartnerHomeScreenState extends State<PartnerHomeScreen> {
     final walkId = _reviewWalkId;
 
     if (walkId == null || walkId.isEmpty) {
-      setState(() {
-        _showReviewPrompt = false;
-      });
+      if (mounted) {
+        setState(() {
+          _showReviewPrompt = false;
+        });
+      }
       return;
     }
 
@@ -1684,6 +1707,9 @@ class _WalkCard extends StatelessWidget {
                         ),
                         Text(
                           location,
+                          maxLines: 2,
+                          overflow:
+                              TextOverflow.ellipsis,
                           style:
                               const TextStyle(
                             color:
