@@ -281,11 +281,13 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       MaterialPageRoute(
         builder: (_) => WalkSummaryScreen(
           dogName: widget.dogName,
-          type: 'Regular Walk',
+          walkType: 'Regular Walk',
           scheduledTime: widget.time,
           durationSeconds: _seconds,
           distanceKm: _distanceMeters / 1000,
           location: widget.location,
+          peeCount: _peeCount,
+          poopCount: _poopCount,
         ),
       ),
     );
@@ -620,12 +622,18 @@ class _RoutePainter extends CustomPainter {
     if (route.isEmpty) {
       _drawStartMarker(
         canvas,
-        Offset(size.width * 0.35, size.height * 0.52),
+        Offset(
+          size.width * 0.35,
+          size.height * 0.52,
+        ),
       );
 
       _drawCurrentMarker(
         canvas,
-        Offset(size.width * 0.65, size.height * 0.52),
+        Offset(
+          size.width * 0.65,
+          size.height * 0.52,
+        ),
       );
 
       return;
@@ -649,10 +657,22 @@ class _RoutePainter extends CustomPainter {
     double maxLng = route.first.longitude;
 
     for (final position in route) {
-      minLat = math.min(minLat, position.latitude);
-      maxLat = math.max(maxLat, position.latitude);
-      minLng = math.min(minLng, position.longitude);
-      maxLng = math.max(maxLng, position.longitude);
+      minLat = math.min(
+        minLat,
+        position.latitude,
+      );
+      maxLat = math.max(
+        maxLat,
+        position.latitude,
+      );
+      minLng = math.min(
+        minLng,
+        position.longitude,
+      );
+      maxLng = math.max(
+        maxLng,
+        position.longitude,
+      );
     }
 
     final latRange = maxLat - minLat;
@@ -660,6 +680,7 @@ class _RoutePainter extends CustomPainter {
 
     final paddedLatRange =
         latRange == 0 ? 0.001 : latRange * 1.25;
+
     final paddedLngRange =
         lngRange == 0 ? 0.001 : lngRange * 1.25;
 
@@ -672,12 +693,10 @@ class _RoutePainter extends CustomPainter {
     );
 
     Offset project(Position position) {
-      final x =
-          size.width / 2 +
+      final x = size.width / 2 +
           (position.longitude - centerLng) * scale;
 
-      final y =
-          size.height / 2 -
+      final y = size.height / 2 -
           (position.latitude - centerLat) * scale;
 
       return Offset(x, y);
@@ -689,9 +708,15 @@ class _RoutePainter extends CustomPainter {
       final point = project(route[i]);
 
       if (i == 0) {
-        path.moveTo(point.dx, point.dy);
+        path.moveTo(
+          point.dx,
+          point.dy,
+        );
       } else {
-        path.lineTo(point.dx, point.dy);
+        path.lineTo(
+          point.dx,
+          point.dy,
+        );
       }
     }
 
@@ -702,7 +727,10 @@ class _RoutePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    canvas.drawPath(path, shadowPaint);
+    canvas.drawPath(
+      path,
+      shadowPaint,
+    );
 
     final routePaint = Paint()
       ..color = DojoPartnerTheme.primaryOrange
@@ -711,7 +739,10 @@ class _RoutePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;
 
-    canvas.drawPath(path, routePaint);
+    canvas.drawPath(
+      path,
+      routePaint,
+    );
 
     _drawStartMarker(
       canvas,
@@ -724,7 +755,10 @@ class _RoutePainter extends CustomPainter {
     );
   }
 
-  void _drawMapBackground(Canvas canvas, Size size) {
+  void _drawMapBackground(
+    Canvas canvas,
+    Size size,
+  ) {
     final roadPaint = Paint()
       ..color = const Color(0xFFFFFFFF)
       ..strokeWidth = 1;
@@ -732,7 +766,10 @@ class _RoutePainter extends CustomPainter {
     for (var x = 0.0; x < size.width; x += 55) {
       canvas.drawLine(
         Offset(x, 0),
-        Offset(x + 70, size.height),
+        Offset(
+          x + 70,
+          size.height,
+        ),
         roadPaint,
       );
     }
@@ -740,7 +777,10 @@ class _RoutePainter extends CustomPainter {
     for (var y = 25.0; y < size.height; y += 58) {
       canvas.drawLine(
         Offset(0, y),
-        Offset(size.width, y + 35),
+        Offset(
+          size.width,
+          y + 35,
+        ),
         roadPaint,
       );
     }
@@ -753,26 +793,45 @@ class _RoutePainter extends CustomPainter {
     for (var x = 25.0; x < size.width; x += 105) {
       for (var y = 35.0; y < size.height; y += 95) {
         canvas.drawRect(
-          Rect.fromLTWH(x, y, 60, 45),
+          Rect.fromLTWH(
+            x,
+            y,
+            60,
+            45,
+          ),
           blockPaint,
         );
       }
     }
   }
 
-  void _drawStartMarker(Canvas canvas, Offset point) {
+  void _drawStartMarker(
+    Canvas canvas,
+    Offset point,
+  ) {
     final paint = Paint()
       ..color = const Color(0xFF333333);
 
-    canvas.drawCircle(point, 8, paint);
+    canvas.drawCircle(
+      point,
+      8,
+      paint,
+    );
 
     final inner = Paint()
       ..color = Colors.white;
 
-    canvas.drawCircle(point, 3, inner);
+    canvas.drawCircle(
+      point,
+      3,
+      inner,
+    );
   }
 
-  void _drawCurrentMarker(Canvas canvas, Offset point) {
+  void _drawCurrentMarker(
+    Canvas canvas,
+    Offset point,
+  ) {
     final shadow = Paint()
       ..color = Colors.black.withOpacity(0.18);
 
@@ -785,16 +844,26 @@ class _RoutePainter extends CustomPainter {
     final outer = Paint()
       ..color = DojoPartnerTheme.primaryOrange;
 
-    canvas.drawCircle(point, 14, outer);
+    canvas.drawCircle(
+      point,
+      14,
+      outer,
+    );
 
     final inner = Paint()
       ..color = Colors.white;
 
-    canvas.drawCircle(point, 6, inner);
+    canvas.drawCircle(
+      point,
+      6,
+      inner,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _RoutePainter oldDelegate) {
+  bool shouldRepaint(
+    covariant _RoutePainter oldDelegate,
+  ) {
     return oldDelegate.route.length != route.length ||
         oldDelegate.tracking != tracking;
   }
@@ -867,7 +936,12 @@ class _WalkNotesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+      padding: const EdgeInsets.fromLTRB(
+        14,
+        13,
+        14,
+        12,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -876,7 +950,8 @@ class _WalkNotesCard extends StatelessWidget {
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
         children: [
           const Text(
             'Walk Notes',
@@ -943,7 +1018,9 @@ class _NoteControl extends StatelessWidget {
           const SizedBox(width: 10),
           Text(
             emoji,
-            style: const TextStyle(fontSize: 19),
+            style: const TextStyle(
+              fontSize: 19,
+            ),
           ),
           const SizedBox(width: 6),
           Expanded(
@@ -957,15 +1034,23 @@ class _NoteControl extends StatelessWidget {
           ),
           IconButton(
             onPressed: count > 0 ? onMinus : null,
-            icon: const Icon(Icons.remove, size: 18),
+            icon: const Icon(
+              Icons.remove,
+              size: 18,
+            ),
             tooltip: 'Decrease $label',
-            visualDensity: VisualDensity.compact,
+            visualDensity:
+                VisualDensity.compact,
           ),
           IconButton(
             onPressed: onAdd,
-            icon: const Icon(Icons.add, size: 18),
+            icon: const Icon(
+              Icons.add,
+              size: 18,
+            ),
             tooltip: 'Add $label',
-            visualDensity: VisualDensity.compact,
+            visualDensity:
+                VisualDensity.compact,
           ),
         ],
       ),
@@ -983,10 +1068,12 @@ class _SlideToEnd extends StatefulWidget {
   final Future<void> Function() onCompleted;
 
   @override
-  State<_SlideToEnd> createState() => _SlideToEndState();
+  State<_SlideToEnd> createState() =>
+      _SlideToEndState();
 }
 
-class _SlideToEndState extends State<_SlideToEnd> {
+class _SlideToEndState
+    extends State<_SlideToEnd> {
   double _value = 0;
   bool _completed = false;
 
@@ -1004,7 +1091,9 @@ class _SlideToEndState extends State<_SlideToEnd> {
   }
 
   @override
-  void didUpdateWidget(covariant _SlideToEnd oldWidget) {
+  void didUpdateWidget(
+    covariant _SlideToEnd oldWidget,
+  ) {
     super.didUpdateWidget(oldWidget);
 
     if (!widget.enabled) {
@@ -1026,11 +1115,14 @@ class _SlideToEndState extends State<_SlideToEnd> {
         children: [
           Center(
             child: Padding(
-              padding: const EdgeInsets.only(left: 55),
+              padding: const EdgeInsets.only(
+                left: 55,
+              ),
               child: Text(
                 'Slide to End Walk  →',
-                style: TextStyle(
-                  color: DojoPartnerTheme.primaryOrange,
+                style: const TextStyle(
+                  color:
+                      DojoPartnerTheme.primaryOrange,
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
                 ),
@@ -1042,10 +1134,13 @@ class _SlideToEndState extends State<_SlideToEnd> {
               trackHeight: 58,
               activeTrackColor:
                   DojoPartnerTheme.primaryOrange,
-              inactiveTrackColor: Colors.transparent,
+              inactiveTrackColor:
+                  Colors.transparent,
               thumbColor: Colors.white,
-              overlayColor: Colors.transparent,
-              thumbShape: const RoundSliderThumbShape(
+              overlayColor:
+                  Colors.transparent,
+              thumbShape:
+                  const RoundSliderThumbShape(
                 enabledThumbRadius: 25,
               ),
             ),
@@ -1054,7 +1149,9 @@ class _SlideToEndState extends State<_SlideToEnd> {
               min: 0,
               max: 1,
               onChanged:
-                  widget.enabled ? _onChanged : null,
+                  widget.enabled
+                      ? _onChanged
+                      : null,
             ),
           ),
         ],
