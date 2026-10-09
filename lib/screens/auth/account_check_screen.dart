@@ -88,45 +88,35 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
 
       if (!mounted) return;
 
-      String message;
-      IconData statusIcon;
-
       switch (status) {
         case 'pending':
         case 'under_review':
-          message = 'Your application is under review.';
-          statusIcon = Icons.hourglass_top_rounded;
+          _message = 'Your application is under review.';
           break;
 
         case 'correction_required':
-          message = 'Some information needs correction.';
-          statusIcon = Icons.edit_note_rounded;
+          _message = 'Some information needs correction.';
           break;
 
         case 'suspended':
-          message = 'Your DOJO Partner account is suspended.';
-          statusIcon = Icons.pause_circle_outline_rounded;
+          _message = 'Your DOJO Partner account is suspended.';
           break;
 
         case 'rejected':
-          message = 'Your Partner application was not approved.';
-          statusIcon = Icons.info_outline_rounded;
+          _message = 'Your Partner application was not approved.';
           break;
 
         case 'left':
-          message = 'This Partner account is inactive.';
-          statusIcon = Icons.person_off_outlined;
+          _message = 'This Partner account is inactive.';
           break;
 
         default:
-          message = 'Your account is being checked by DOJO.';
-          statusIcon = Icons.manage_search_rounded;
+          _message = 'Your account is being checked by DOJO.';
       }
 
       setState(() {
         _isChecking = false;
         _hasError = false;
-        _message = message;
       });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -177,7 +167,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Centered DOJO Partner branding.
+                        // DOJO PARTNER branding.
                         Column(
                           children: [
                             Container(
@@ -236,8 +226,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                   width: 44,
                                   height: 44,
                                   child: CircularProgressIndicator(
-                                    color:
-                                        DojoPartnerTheme.primaryOrange,
+                                    color: DojoPartnerTheme.primaryOrange,
                                     strokeWidth: 3,
                                   ),
                                 )
@@ -246,18 +235,15 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                   width: 58,
                                   height: 58,
                                   decoration: BoxDecoration(
-                                    color: _hasError
-                                        ? const Color(0xFFFFF0E5)
-                                        : const Color(0xFFFFF3E8),
+                                    color: const Color(0xFFFFF3E8),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
                                     _hasError
-                                        ? Icons.wifi_off_rounded
+                                        ? Icons.error_outline_rounded
                                         : Icons.hourglass_top_rounded,
                                     size: 30,
-                                    color:
-                                        DojoPartnerTheme.primaryOrange,
+                                    color: DojoPartnerTheme.primaryOrange,
                                   ),
                                 ),
 
@@ -273,8 +259,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                 style: const TextStyle(
                                   fontSize: 21,
                                   fontWeight: FontWeight.w800,
-                                  color:
-                                      DojoPartnerTheme.textPrimary,
+                                  color: DojoPartnerTheme.textPrimary,
                                 ),
                               ),
 
@@ -286,8 +271,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                 style: const TextStyle(
                                   fontSize: 15,
                                   height: 1.6,
-                                  color:
-                                      DojoPartnerTheme.textSecondary,
+                                  color: DojoPartnerTheme.textSecondary,
                                 ),
                               ),
 
