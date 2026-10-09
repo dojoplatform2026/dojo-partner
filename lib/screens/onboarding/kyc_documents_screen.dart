@@ -1,10 +1,14 @@
 
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../theme.dart';
+import 'review_submit_screen.dart';
 
 class KycDocumentsScreen extends StatefulWidget {
   const KycDocumentsScreen({super.key});
@@ -14,8 +18,7 @@ class KycDocumentsScreen extends StatefulWidget {
       _KycDocumentsScreenState();
 }
 
-class _KycDocumentsScreenState
-    extends State<KycDocumentsScreen> {
+class _KycDocumentsScreenState extends State<KycDocumentsScreen> {
   final ImagePicker _picker = ImagePicker();
 
   final Map<String, File?> _documents = {
@@ -31,9 +34,12 @@ class _KycDocumentsScreenState
   };
 
   String? _activeKey;
+  bool _isUploading = false;
+  double _uploadProgress = 0;
+  String _uploadMessage = '';
 
   Future<void> _captureDocument(String key) async {
-    if (_activeKey != null) return;
+    if (_activeKey != null || _isUploading) return;
 
     setState(() => _activeKey = key);
 
@@ -54,18 +60,175 @@ class _KycDocumentsScreenState
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Camera could not open. Please check permissions.',
-          ),
-        ),
+      _showMessage(
+        'Camera could not open. Please check camera permission.',
       );
     } finally {
       if (mounted) {
         setState(() => _activeKey = null);
       }
     }
+  }
+
+  Future<void> _uploadDocuments() async {
+    if (_isUploading || _activeKey != null) return;
+
+    final missing = _documents.entries
+        .where((entry) => entry.value == null)
+        .map((entry) => _labels[entry.key]!)
+        .toList();
+
+    if (missing.isNotEmpty) {
+      _showMessage(
+        'Please capture all 3 documents before continuing.',
+      );
+      return;
+    }
+
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _showMessage('Your session expired. Please log in again.');
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _uploadProgress = 0;
+      _uploadMessage = 'Preparing documents...';
+    });
+
+    final uploadedPaths = <String, String>{};
+
+    try {
+      const documentKeys = [
+        'aadhaar_front',
+        'aadhaar_back',
+        'pan_card',
+      ];
+
+      for (var i = 0; i < documentKeys.length; i++) {
+        final key = documentKeys[i];
+        final file = _documents[key]!;
+
+        if (!await file.exists()) {
+          throw Exception(
+            'The ${_labels[key]} photo is no longer available. '
+            'Please capture it again.',
+          );
+        }
+
+        final fileName =
+            '${key}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+        // Private Storage path; do not create public download URLs.
+        final storagePath =
+            'walker_kyc/${user.uid}/$fileName';
+
+        if (mounted) {
+          setState(() {
+            _uploadMessage = 'Uploading ${_labels[key]}...';
+            _uploadProgress = i / documentKeys.length;
+          });
+        }
+
+        final ref =
+            FirebaseStorage.instance.ref().child(storagePath);
+
+        await ref.putFile(
+          file,
+          SettableMetadata(
+            contentType: 'image/jpeg',
+            customMetadata: {
+              'walkerId': user.uid,
+              'documentType': key,
+            },
+          ),
+        );
+
+        uploadedPaths[key] = storagePath;
+
+        if (mounted) {
+          setState(() {
+            _uploadProgress = (i + 1) / documentKeys.length;
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _uploadMessage = 'Saving verification details...';
+        });
+      }
+
+      final documentRecords = <String, dynamic>{};
+
+      for (final entry in uploadedPaths.entries) {
+        documentRecords[entry.key] = {
+          'status': 'pending',
+          'storagePath': entry.value,
+          'submittedAt': FieldValue.serverTimestamp(),
+        };
+      }
+
+      await FirebaseFirestore.instance
+          .collection('walkers')
+          .doc(user.uid)
+          .set(
+        {
+          'userId': user.uid,
+          'walkerId': user.uid,
+          'kyc': {
+            'documents': documentRecords,
+          },
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const ReviewSubmitScreen(),
+        ),
+      );
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      String message;
+
+      if (e.code == 'permission-denied' ||
+          e.code == 'unauthorized') {
+        message =
+            'Firebase access denied. Storage and Firestore rules '
+            'must allow this KYC upload.';
+      } else {
+        message = e.message ?? 'Unable to upload documents.';
+      }
+
+      _showMessage(message);
+    } catch (e) {
+      if (!mounted) return;
+
+      _showMessage(
+        e.toString().replaceFirst('Exception: ', ''),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadMessage = '';
+        });
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   Widget _documentCard(String key) {
@@ -144,14 +307,22 @@ class _KycDocumentsScreenState
             width: double.infinity,
             height: 46,
             child: OutlinedButton.icon(
-              onPressed: _activeKey != null
+              onPressed: _activeKey != null || _isUploading
                   ? null
                   : () => _captureDocument(key),
-              icon: Icon(
-                file == null
-                    ? Icons.camera_alt_outlined
-                    : Icons.refresh_rounded,
-              ),
+              icon: _activeKey == key
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Icon(
+                      file == null
+                          ? Icons.camera_alt_outlined
+                          : Icons.refresh_rounded,
+                    ),
               label: Text(
                 _activeKey == key
                     ? 'Opening Camera...'
@@ -207,7 +378,8 @@ class _KycDocumentsScreenState
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Capture clear, readable photos of your original documents.',
+                    'Capture clear, readable photos of your '
+                    'original documents.',
                     style: TextStyle(
                       fontSize: 14,
                       height: 1.5,
@@ -229,8 +401,8 @@ class _KycDocumentsScreenState
                   _documentCard('pan_card'),
                   const SizedBox(height: 18),
                   const Text(
-                    'Privacy: Only submit your own documents. '
-                    'Keep document numbers readable and avoid glare.',
+                    'Submit only your own documents. Ensure '
+                    'the photos are readable and avoid glare.',
                     style: TextStyle(
                       fontSize: 12,
                       height: 1.5,
@@ -248,41 +420,52 @@ class _KycDocumentsScreenState
                   top: BorderSide(color: Color(0xFFE8E8E8)),
                 ),
               ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: completed == 3 && _activeKey == null
-                      ? () {
-                          ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Document upload and review flow '
-                                'will be connected in the next step.',
+              child: Column(
+                children: [
+                  if (_isUploading) ...[
+                    LinearProgressIndicator(
+                      value: _uploadProgress,
+                      color: DojoPartnerTheme.primaryOrange,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _uploadMessage,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: completed == 3 &&
+                              _activeKey == null &&
+                              !_isUploading
+                          ? _uploadDocuments
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            DojoPartnerTheme.primaryOrange,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            const Color(0xFFE5E5E5),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      child: _isUploading
+                          ? const Text('Uploading Documents...')
+                          : const Text(
+                              'Upload & Continue to Review',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-                          );
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        DojoPartnerTheme.primaryOrange,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        const Color(0xFFE5E5E5),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(13),
                     ),
                   ),
-                  child: const Text(
-                    'Continue to Review',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
+                ],
               ),
             ),
           ],
