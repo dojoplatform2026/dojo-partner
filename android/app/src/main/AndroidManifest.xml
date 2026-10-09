@@ -1,8 +1,12 @@
+
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Location permissions for DOJO Partner live walk tracking -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Camera permission for Partner selfie capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:label="dojo_partner"
