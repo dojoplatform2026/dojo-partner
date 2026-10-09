@@ -1,3 +1,4 @@
+
 name: dojo_partner
 description: DOJO Partner - Walker App
 publish_to: "none"
@@ -16,6 +17,9 @@ dependencies:
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.0
   cloud_firestore: ^6.1.0
+  firebase_storage: ^13.0.4
+
+  image_picker: ^1.1.2
 
   geolocator: ^14.0.2
   google_maps_flutter: ^2.18.2
