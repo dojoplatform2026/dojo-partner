@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../theme.dart';
-import 'review_submit_screen.dart';
+import 'kyc_documents_screen.dart';
 
 class LiveSelfieScreen extends StatefulWidget {
   const LiveSelfieScreen({super.key});
@@ -40,10 +40,13 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       if (!mounted) return;
 
       if (image != null) {
-        setState(() => _selfieFile = File(image.path));
+        setState(() {
+          _selfieFile = File(image.path);
+        });
       }
     } catch (_) {
       if (!mounted) return;
+
       _showMessage(
         'Unable to open the camera. Please check camera permission.',
       );
@@ -60,6 +63,8 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       return;
     }
 
+    if (_isUploading || _isCapturing) return;
+
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
@@ -71,6 +76,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
 
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+
       final storagePath =
           'walker_selfies/${user.uid}/selfie_$timestamp.jpg';
 
@@ -93,6 +99,8 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
           .doc(user.uid)
           .set(
         {
+          'userId': user.uid,
+          'walkerId': user.uid,
           'kyc': {
             'selfie': {
               'status': 'pending',
@@ -110,7 +118,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const ReviewSubmitScreen(),
+          builder: (_) => const KycDocumentsScreen(),
         ),
       );
     } on FirebaseException catch (e) {
@@ -121,7 +129,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       if (e.code == 'permission-denied' ||
           e.code == 'unauthorized') {
         message =
-            'Upload access denied. Please check Firebase Storage and Firestore rules.';
+            'Access denied. Please check Firebase Storage and Firestore rules.';
       } else {
         message = e.message ?? 'Unable to upload your selfie.';
       }
@@ -129,6 +137,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       _showMessage(message);
     } catch (_) {
       if (!mounted) return;
+
       _showMessage('Something went wrong. Please try again.');
     } finally {
       if (mounted) {
@@ -151,7 +160,9 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFFFAFAFA),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFE7E7E7)),
+        border: Border.all(
+          color: const Color(0xFFE7E7E7),
+        ),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -235,7 +246,10 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(
-                      22, 24, 22, 24,
+                      22,
+                      24,
+                      22,
+                      24,
                     ),
                     children: [
                       const Center(
@@ -261,7 +275,8 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                       ),
                       const SizedBox(height: 9),
                       const Text(
-                        'Take a clear photo of your face. DOJO will review your submission.',
+                        'Take a clear photo of your face. '
+                        'DOJO will review your submission.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14,
@@ -291,7 +306,9 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                             SizedBox(width: 11),
                             Expanded(
                               child: Text(
-                                'Use good lighting, face the camera directly and remove anything covering your face.',
+                                'Use good lighting, face the camera '
+                                'directly and remove anything covering '
+                                'your face.',
                                 style: TextStyle(
                                   fontSize: 13,
                                   height: 1.5,
@@ -308,12 +325,17 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(
-                    22, 14, 22, 18,
+                    22,
+                    14,
+                    22,
+                    18,
                   ),
                   decoration: const BoxDecoration(
                     color: Colors.white,
                     border: Border(
-                      top: BorderSide(color: Color(0xFFE8E8E8)),
+                      top: BorderSide(
+                        color: Color(0xFFE8E8E8),
+                      ),
                     ),
                   ),
                   child: Column(
@@ -360,9 +382,10 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: busy || _selfieFile == null
-                              ? null
-                              : _confirmSelfie,
+                          onPressed:
+                              busy || _selfieFile == null
+                                  ? null
+                                  : _confirmSelfie,
                           style: ElevatedButton.styleFrom(
                             backgroundColor:
                                 DojoPartnerTheme.primaryOrange,
