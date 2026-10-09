@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as maps;
 
 import '../../theme.dart';
 import 'customer_otp_sheet.dart';
@@ -34,6 +35,10 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
   Timer? _timer;
   StreamSubscription<Position>? _positionSubscription;
 
+  // One stable document ID prevents duplicate walk documents on retry.
+  late final String _walkDocumentId =
+      FirebaseFirestore.instance.collection('walks').doc().id;
+
   int _seconds = 0;
   double _distanceMeters = 0;
 
@@ -42,7 +47,6 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
   Position? _lastPosition;
   Position? _startPosition;
-
   DateTime? _startedAt;
 
   final List<Position> _route = [];
@@ -50,14 +54,17 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
   bool _isStarting = true;
   bool _isEnding = false;
   bool _locationTracking = false;
-
   bool _showReturnPanel = false;
   bool _dogReturned = false;
   bool _returnLocationChecked = false;
   bool _sameReturnLocation = false;
+  bool _returnLocationFailed = false;
 
   double? _customerLatitude;
   double? _customerLongitude;
+
+  bool get _hasCustomerLocation =>
+      _customerLatitude != null && _customerLongitude != null;
 
   @override
   void initState() {
@@ -73,36 +80,60 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
   }
 
   Future<void> _startWalk() async {
-    final permission = await _checkLocationPermission();
+    try {
+      final permission = await _checkLocationPermission();
 
-    if (!permission) {
+      if (!permission) {
+        if (!mounted) return;
+
+        setState(() {
+          _isStarting = false;
+          _locationTracking = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Location permission is required to start the walk.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await _loadCustomerLocation();
+
+      if (!mounted) return;
+
+      _startedAt ??= DateTime.now();
+
+      setState(() {
+        _isStarting = false;
+        _locationTracking = true;
+      });
+
+      _startTimer();
+      await _startLocationStream();
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
         _isStarting = false;
+        _locationTracking = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Location permission is required to start the walk.',
+            'Could not start location tracking. Please try again.',
           ),
         ),
       );
-
-      return;
     }
+  }
 
-    await _loadCustomerLocation();
-
-    if (!mounted) return;
-
-    _startedAt = DateTime.now();
-
-    setState(() {
-      _isStarting = false;
-      _locationTracking = true;
-    });
+  void _startTimer() {
+    _timer?.cancel();
 
     _timer = Timer.periodic(
       const Duration(seconds: 1),
@@ -114,52 +145,18 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         });
       },
     );
+  }
+
+  Future<void> _startLocationStream() async {
+    await _positionSubscription?.cancel();
 
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 3,
       ),
     ).listen(
-      (position) {
-        _startPosition ??= position;
-
-        if (_lastPosition != null) {
-          final meters = Geolocator.distanceBetween(
-            _lastPosition!.latitude,
-            _lastPosition!.longitude,
-            position.latitude,
-            position.longitude,
-          );
-
-          if (meters > 0 && meters < 100) {
-            _distanceMeters += meters;
-          }
-        }
-
-        _lastPosition = position;
-
-        if (_route.isEmpty) {
-          _route.add(position);
-        } else {
-          final last = _route.last;
-
-          final movement = Geolocator.distanceBetween(
-            last.latitude,
-            last.longitude,
-            position.latitude,
-            position.longitude,
-          );
-
-          if (movement >= 3 && movement < 100) {
-            _route.add(position);
-          }
-        }
-
-        if (mounted) {
-          setState(() {});
-        }
-      },
+      _handlePosition,
       onError: (_) {
         if (!mounted) return;
 
@@ -170,7 +167,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Unable to update your location.',
+              'GPS updates stopped. Check your location settings.',
             ),
           ),
         );
@@ -178,12 +175,66 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     );
   }
 
+  void _handlePosition(Position position) {
+    if (!mounted || _isEnding) return;
+
+    // Ignore unreliable GPS readings.
+    if (!position.latitude.isFinite ||
+        !position.longitude.isFinite ||
+        position.accuracy > 35 ||
+        position.latitude < -90 ||
+        position.latitude > 90 ||
+        position.longitude < -180 ||
+        position.longitude > 180) {
+      return;
+    }
+
+    final previous = _lastPosition;
+
+    if (previous == null) {
+      _startPosition = position;
+      _lastPosition = position;
+      _route.add(position);
+
+      setState(() {
+        _locationTracking = true;
+      });
+      return;
+    }
+
+    final movement = Geolocator.distanceBetween(
+      previous.latitude,
+      previous.longitude,
+      position.latitude,
+      position.longitude,
+    );
+
+    // Reject large GPS jumps instead of inflating distance.
+    if (!movement.isFinite || movement > 100) {
+      return;
+    }
+
+    // Keep the route from filling with tiny GPS fluctuations.
+    if (movement < 3) {
+      setState(() {
+        _locationTracking = true;
+      });
+      return;
+    }
+
+    _distanceMeters += movement;
+    _lastPosition = position;
+    _route.add(position);
+
+    setState(() {
+      _locationTracking = true;
+    });
+  }
+
   Future<void> _loadCustomerLocation() async {
     final bookingId = widget.bookingId;
 
-    if (bookingId == null || bookingId.isEmpty) {
-      return;
-    }
+    if (bookingId == null || bookingId.isEmpty) return;
 
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -192,18 +243,12 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           .get();
 
       final data = snapshot.data();
-
       if (data == null) return;
 
-      final latitude = _readDouble(
-        data['latitude'],
-      );
+      final latitude = _readDouble(data['latitude']);
+      final longitude = _readDouble(data['longitude']);
 
-      final longitude = _readDouble(
-        data['longitude'],
-      );
-
-      if (latitude != null && longitude != null) {
+      if (_validCoordinates(latitude, longitude)) {
         _customerLatitude = latitude;
         _customerLongitude = longitude;
         return;
@@ -211,23 +256,33 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
       final geoPoint = data['location'];
 
-      if (geoPoint is GeoPoint) {
+      if (geoPoint is GeoPoint &&
+          _validCoordinates(
+            geoPoint.latitude,
+            geoPoint.longitude,
+          )) {
         _customerLatitude = geoPoint.latitude;
         _customerLongitude = geoPoint.longitude;
       }
     } catch (_) {
-      // Customer location is optional until booking data provides it.
+      // Missing customer coordinates are handled during return verification.
     }
   }
 
-  double? _readDouble(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
+  bool _validCoordinates(double? latitude, double? longitude) {
+    return latitude != null &&
+        longitude != null &&
+        latitude.isFinite &&
+        longitude.isFinite &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+  }
 
-    return double.tryParse(
-      value?.toString() ?? '',
-    );
+  double? _readDouble(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
   }
 
   Future<bool> _checkLocationPermission() async {
@@ -239,27 +294,22 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
       final openSettings = await showDialog<bool>(
         context: context,
-        builder: (context) {
+        builder: (dialogContext) {
           return AlertDialog(
-            title: const Text(
-              'Location is off',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            title: const Text('Location is off'),
             content: const Text(
               'Please turn on location services to start the walk.',
             ),
             actions: [
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context, false);
+                  Navigator.pop(dialogContext, false);
                 },
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context, true);
+                  Navigator.pop(dialogContext, true);
                 },
                 child: const Text('Open Settings'),
               ),
@@ -281,40 +331,26 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return false;
-    }
-
-    return true;
+    return permission != LocationPermission.denied &&
+        permission != LocationPermission.deniedForever;
   }
 
   void _increasePee() {
-    setState(() {
-      _peeCount++;
-    });
+    setState(() => _peeCount++);
   }
 
   void _increasePoop() {
-    setState(() {
-      _poopCount++;
-    });
+    setState(() => _poopCount++);
   }
 
   void _decreasePee() {
     if (_peeCount == 0) return;
-
-    setState(() {
-      _peeCount--;
-    });
+    setState(() => _peeCount--);
   }
 
   void _decreasePoop() {
     if (_poopCount == 0) return;
-
-    setState(() {
-      _poopCount--;
-    });
+    setState(() => _poopCount--);
   }
 
   String get _formattedTime {
@@ -332,11 +368,8 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         '${seconds.toString().padLeft(2, '0')}';
   }
 
-  String get _formattedDistance {
-    final kilometers = _distanceMeters / 1000;
-
-    return '${kilometers.toStringAsFixed(2)} km';
-  }
+  String get _formattedDistance =>
+      '${(_distanceMeters / 1000).toStringAsFixed(2)} km';
 
   Future<void> _openReturnPanel() async {
     if (_isEnding) return;
@@ -344,6 +377,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     setState(() {
       _showReturnPanel = true;
       _returnLocationChecked = false;
+      _returnLocationFailed = false;
     });
 
     await _checkReturnLocation();
@@ -354,49 +388,52 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     setState(() {
       _returnLocationChecked = false;
+      _returnLocationFailed = false;
     });
 
-    var currentPosition = _lastPosition;
+    Position? currentPosition;
 
-    if (currentPosition == null) {
-      try {
-        currentPosition = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-          ),
-        );
+    try {
+      final serviceEnabled =
+          await Geolocator.isLocationServiceEnabled();
 
-        if (!mounted) return;
-
-        _lastPosition = currentPosition;
-      } catch (_) {
-        if (!mounted) return;
-
-        setState(() {
-          _returnLocationChecked = true;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Unable to check your current location.',
-            ),
-          ),
-        );
-
-        return;
+      if (!serviceEnabled) {
+        throw Exception('Location services are off.');
       }
+
+      currentPosition = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      if (!mounted) return;
+
+      // Do not trust a poor-accuracy reading for return verification.
+      if (currentPosition.accuracy > 35) {
+        throw Exception('GPS accuracy is too low.');
+      }
+
+      _lastPosition = currentPosition;
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _returnLocationChecked = true;
+        _returnLocationFailed = true;
+        _sameReturnLocation = false;
+      });
+      return;
     }
 
     if (!mounted) return;
 
-    if (_customerLatitude == null ||
-        _customerLongitude == null) {
+    if (!_hasCustomerLocation) {
       setState(() {
         _returnLocationChecked = true;
+        _returnLocationFailed = true;
         _sameReturnLocation = false;
       });
-
       return;
     }
 
@@ -409,12 +446,17 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     setState(() {
       _returnLocationChecked = true;
+      _returnLocationFailed = false;
       _sameReturnLocation = distance <= 75;
     });
   }
 
   void _markDogReturned() {
-    if (_isEnding || !_showReturnPanel) return;
+    if (_isEnding ||
+        !_showReturnPanel ||
+        !_returnLocationChecked) {
+      return;
+    }
 
     setState(() {
       _dogReturned = true;
@@ -424,6 +466,13 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
   Future<void> _confirmEndWalk() async {
     if (_isEnding || !_dogReturned) return;
 
+    if (!_returnLocationChecked) {
+      await _checkReturnLocation();
+      if (!mounted || !_returnLocationChecked) return;
+    }
+
+    // If the GPS fix or customer coordinates are unavailable, do not
+    // pretend the location matches. Require the OTP flow instead.
     if (!_sameReturnLocation) {
       await _showCustomerOtpSheet();
       return;
@@ -436,12 +485,8 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     final bookingId = widget.bookingId;
 
     if (bookingId == null || bookingId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Booking information is unavailable.',
-          ),
-        ),
+      _showMessage(
+        'Booking information is unavailable. Contact support to complete this walk.',
       );
       return;
     }
@@ -455,12 +500,10 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           top: Radius.circular(24),
         ),
       ),
-      builder: (_) {
-        return CustomerOtpSheet(
-          bookingId: bookingId,
-          dogName: widget.dogName,
-        );
-      },
+      builder: (_) => CustomerOtpSheet(
+        bookingId: bookingId,
+        dogName: widget.dogName,
+      ),
     );
 
     if (verified == true && mounted) {
@@ -468,8 +511,51 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
     }
   }
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  List<GeoPoint> _compactRoute() {
+    if (_route.isEmpty) return [];
+
+    const maxPoints = 500;
+
+    if (_route.length <= maxPoints) {
+      return _route
+          .map((p) => GeoPoint(p.latitude, p.longitude))
+          .toList();
+    }
+
+    final step = (_route.length - 1) / (maxPoints - 1);
+
+    return List<GeoPoint>.generate(
+      maxPoints,
+      (index) {
+        final routeIndex = (index * step).round();
+        final position = _route[routeIndex];
+
+        return GeoPoint(
+          position.latitude,
+          position.longitude,
+        );
+      },
+    );
+  }
+
   Future<void> _endWalk() async {
     if (_isEnding) return;
+
+    // Check authentication before stopping the timer and GPS stream.
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      _showMessage('Unable to identify partner account.');
+      return;
+    }
 
     setState(() {
       _isEnding = true;
@@ -478,27 +564,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
 
     _timer?.cancel();
     await _positionSubscription?.cancel();
-
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      if (!mounted) return;
-
-      setState(() {
-        _isEnding = false;
-        _locationTracking = true;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Unable to identify partner account.',
-          ),
-        ),
-      );
-
-      return;
-    }
+    _positionSubscription = null;
 
     try {
       final startedAt = _startedAt ?? DateTime.now();
@@ -521,6 +587,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         'returnLocationVerified': _sameReturnLocation,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        'route': _compactRoute(),
       };
 
       if (widget.bookingId != null &&
@@ -542,9 +609,11 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         );
       }
 
+      // Stable ID makes retries update the same walk document.
       await FirebaseFirestore.instance
           .collection('walks')
-          .add(walkData);
+          .doc(_walkDocumentId)
+          .set(walkData);
 
       if (widget.bookingId != null &&
           widget.bookingId!.isNotEmpty) {
@@ -585,12 +654,20 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
         _locationTracking = true;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Walk could not be saved. Please try again.',
-          ),
-        ),
+      _startTimer();
+
+      try {
+        await _startLocationStream();
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _locationTracking = false;
+          });
+        }
+      }
+
+      _showMessage(
+        'Walk could not be fully saved. Check your connection and try again.',
       );
     }
   }
@@ -627,19 +704,12 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
           automaticallyImplyLeading: false,
           title: const Text(
             'Walk in Progress',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
         body: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              20,
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -659,6 +729,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                       child: _MetricCard(
                         value: _formattedTime,
                         label: 'Walk Time',
+                        icon: Icons.timer_outlined,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -666,6 +737,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                       child: _MetricCard(
                         value: _formattedDistance,
                         label: 'Distance',
+                        icon: Icons.route,
                       ),
                     ),
                   ],
@@ -694,7 +766,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     const SizedBox(width: 8),
                     Text(
                       _locationTracking
-                          ? 'GPS Tracking'
+                          ? 'GPS ACTIVE'
                           : 'GPS unavailable',
                       style: TextStyle(
                         fontSize: 13,
@@ -717,6 +789,7 @@ class _LiveWalkScreenState extends State<LiveWalkScreen> {
                     dogName: widget.dogName,
                     checkingLocation: !_returnLocationChecked,
                     sameLocation: _sameReturnLocation,
+                    locationFailed: _returnLocationFailed,
                     dogReturned: _dogReturned,
                     ending: _isEnding,
                     onRefreshLocation: _checkReturnLocation,
@@ -746,7 +819,7 @@ class _DogHeader extends StatelessWidget {
     return Row(
       children: [
         const CircleAvatar(
-          radius: 24,
+          radius: 25,
           backgroundColor: Color(0xFFFFF1E8),
           child: Icon(
             Icons.pets,
@@ -778,12 +851,30 @@ class _DogHeader extends StatelessWidget {
             ],
           ),
         ),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 7,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF8EE),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'LIVE',
+            style: TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _LiveMap extends StatelessWidget {
+class _LiveMap extends StatefulWidget {
   const _LiveMap({
     required this.route,
     required this.tracking,
@@ -793,9 +884,114 @@ class _LiveMap extends StatelessWidget {
   final bool tracking;
 
   @override
+  State<_LiveMap> createState() => _LiveMapState();
+}
+
+class _LiveMapState extends State<_LiveMap> {
+  maps.GoogleMapController? _controller;
+  String? _lastCameraKey;
+
+  static const maps.LatLng _fallback = maps.LatLng(
+    20.5937,
+    78.9629,
+  );
+
+  maps.LatLng _latLng(Position position) {
+    return maps.LatLng(
+      position.latitude,
+      position.longitude,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.route.isNotEmpty) {
+      _moveCameraToLatest();
+    }
+  }
+
+  Future<void> _moveCameraToLatest() async {
+    if (widget.route.isEmpty || _controller == null) return;
+
+    final latest = widget.route.last;
+    final key =
+        '${latest.latitude.toStringAsFixed(6)},'
+        '${latest.longitude.toStringAsFixed(6)}';
+
+    if (key == _lastCameraKey) return;
+    _lastCameraKey = key;
+
+    try {
+      await _controller!.animateCamera(
+        maps.CameraUpdate.newLatLng(_latLng(latest)),
+      );
+    } catch (_) {
+      // Map can still render if camera animation is interrupted.
+    }
+  }
+
+  Set<maps.Marker> _markers() {
+    if (widget.route.isEmpty) return {};
+
+    final markers = <maps.Marker>{};
+
+    if (widget.route.length > 1) {
+      markers.add(
+        maps.Marker(
+          markerId: const maps.MarkerId('walk-start'),
+          position: _latLng(widget.route.first),
+          infoWindow: const maps.InfoWindow(
+            title: 'Walk started',
+          ),
+          icon: maps.BitmapDescriptor.defaultMarkerWithHue(
+            maps.BitmapDescriptor.hueAzure,
+          ),
+        ),
+      );
+    }
+
+    markers.add(
+      maps.Marker(
+        markerId: const maps.MarkerId('live-location'),
+        position: _latLng(widget.route.last),
+        infoWindow: const maps.InfoWindow(
+          title: 'Current location',
+        ),
+        icon: maps.BitmapDescriptor.defaultMarkerWithHue(
+          maps.BitmapDescriptor.hueOrange,
+        ),
+      ),
+    );
+
+    return markers;
+  }
+
+  Set<maps.Polyline> _polylines() {
+    if (widget.route.length < 2) return {};
+
+    return {
+      maps.Polyline(
+        polylineId: const maps.PolylineId('walk-route'),
+        points: widget.route.map(_latLng).toList(),
+        color: DojoPartnerTheme.primaryOrange,
+        width: 6,
+        startCap: maps.Cap.roundCap,
+        endCap: maps.Cap.roundCap,
+        jointType: maps.JointType.round,
+      ),
+    };
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final initialPosition = widget.route.isNotEmpty
+        ? _latLng(widget.route.last)
+        : _fallback;
+
     return Container(
-      height: 270,
+      height: 330,
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -807,12 +1003,25 @@ class _LiveMap extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          CustomPaint(
-            size: Size.infinite,
-            painter: _RoutePainter(
-              route: route,
-              tracking: tracking,
+          maps.GoogleMap(
+            initialCameraPosition: maps.CameraPosition(
+              target: initialPosition,
+              zoom: widget.route.isNotEmpty ? 17 : 4.5,
             ),
+            onMapCreated: (controller) {
+              _controller = controller;
+              _moveCameraToLatest();
+            },
+            mapType: maps.MapType.normal,
+            myLocationEnabled: widget.tracking,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: true,
+            compassEnabled: true,
+            mapToolbarEnabled: false,
+            buildingsEnabled: true,
+            trafficEnabled: false,
+            markers: _markers(),
+            polylines: _polylines(),
           ),
           Positioned(
             top: 12,
@@ -825,29 +1034,32 @@ class _LiveMap extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFFE5E5E5),
-                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    tracking
+                    widget.tracking
                         ? Icons.gps_fixed
                         : Icons.gps_off,
                     size: 15,
-                    color: tracking
+                    color: widget.tracking
                         ? Colors.green
                         : Colors.red,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    tracking ? 'LIVE GPS' : 'GPS OFF',
+                    widget.tracking ? 'GPS ACTIVE' : 'GPS OFF',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: tracking
+                      color: widget.tracking
                           ? Colors.green
                           : Colors.red,
                     ),
@@ -856,288 +1068,32 @@ class _LiveMap extends StatelessWidget {
               ),
             ),
           ),
+          if (widget.route.isEmpty)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 12,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.95),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Waiting for an accurate GPS location...',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
-  }
-}
-
-class _RoutePainter extends CustomPainter {
-  const _RoutePainter({
-    required this.route,
-    required this.tracking,
-  });
-
-  final List<Position> route;
-  final bool tracking;
-
-  @override
-  void paint(
-    Canvas canvas,
-    Size size,
-  ) {
-    _drawMapBackground(canvas, size);
-
-    if (route.isEmpty) {
-      _drawStartMarker(
-        canvas,
-        Offset(
-          size.width * 0.35,
-          size.height * 0.52,
-        ),
-      );
-
-      _drawCurrentMarker(
-        canvas,
-        Offset(
-          size.width * 0.65,
-          size.height * 0.52,
-        ),
-      );
-
-      return;
-    }
-
-    if (route.length == 1) {
-      final point = Offset(
-        size.width * 0.55,
-        size.height * 0.52,
-      );
-
-      _drawStartMarker(
-        canvas,
-        point,
-      );
-
-      _drawCurrentMarker(
-        canvas,
-        point,
-      );
-
-      return;
-    }
-
-    double minLat = route.first.latitude;
-    double maxLat = route.first.latitude;
-    double minLng = route.first.longitude;
-    double maxLng = route.first.longitude;
-
-    for (final position in route) {
-      minLat = math.min(
-        minLat,
-        position.latitude,
-      );
-      maxLat = math.max(
-        maxLat,
-        position.latitude,
-      );
-      minLng = math.min(
-        minLng,
-        position.longitude,
-      );
-      maxLng = math.max(
-        maxLng,
-        position.longitude,
-      );
-    }
-
-    final latRange = maxLat - minLat;
-    final lngRange = maxLng - minLng;
-
-    final paddedLatRange = latRange == 0
-        ? 0.001
-        : latRange * 1.25;
-
-    final paddedLngRange = lngRange == 0
-        ? 0.001
-        : lngRange * 1.25;
-
-    final centerLat = (minLat + maxLat) / 2;
-    final centerLng = (minLng + maxLng) / 2;
-
-    final scale = math.min(
-      (size.width - 70) / paddedLngRange,
-      (size.height - 70) / paddedLatRange,
-    );
-
-    Offset project(Position position) {
-      final x = size.width / 2 +
-          (position.longitude - centerLng) * scale;
-
-      final y = size.height / 2 -
-          (position.latitude - centerLat) * scale;
-
-      return Offset(x, y);
-    }
-
-    final path = Path();
-
-    for (var i = 0; i < route.length; i++) {
-      final point = project(route[i]);
-
-      if (i == 0) {
-        path.moveTo(
-          point.dx,
-          point.dy,
-        );
-      } else {
-        path.lineTo(
-          point.dx,
-          point.dy,
-        );
-      }
-    }
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(
-        alpha: 0.12,
-      )
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(
-      path,
-      shadowPaint,
-    );
-
-    final routePaint = Paint()
-      ..color = DojoPartnerTheme.primaryOrange
-      ..strokeWidth = 5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(
-      path,
-      routePaint,
-    );
-
-    _drawStartMarker(
-      canvas,
-      project(route.first),
-    );
-
-    _drawCurrentMarker(
-      canvas,
-      project(route.last),
-    );
-  }
-
-  void _drawMapBackground(
-    Canvas canvas,
-    Size size,
-  ) {
-    final roadPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 1;
-
-    for (var x = 0.0; x < size.width; x += 55) {
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(
-          x + 70,
-          size.height,
-        ),
-        roadPaint,
-      );
-    }
-
-    for (var y = 25.0; y < size.height; y += 58) {
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(
-          size.width,
-          y + 35,
-        ),
-        roadPaint,
-      );
-    }
-
-    final blockPaint = Paint()
-      ..color = const Color(0xFFE8EAEA)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (var x = 25.0; x < size.width; x += 105) {
-      for (var y = 35.0; y < size.height; y += 95) {
-        canvas.drawRect(
-          Rect.fromLTWH(
-            x,
-            y,
-            60,
-            45,
-          ),
-          blockPaint,
-        );
-      }
-    }
-  }
-
-  void _drawStartMarker(
-    Canvas canvas,
-    Offset point,
-  ) {
-    final paint = Paint()
-      ..color = const Color(0xFF333333);
-
-    canvas.drawCircle(
-      point,
-      8,
-      paint,
-    );
-
-    final inner = Paint()
-      ..color = Colors.white;
-
-    canvas.drawCircle(
-      point,
-      3,
-      inner,
-    );
-  }
-
-  void _drawCurrentMarker(
-    Canvas canvas,
-    Offset point,
-  ) {
-    final shadow = Paint()
-      ..color = Colors.black.withValues(
-        alpha: 0.18,
-      );
-
-    canvas.drawCircle(
-      point.translate(0, 2),
-      14,
-      shadow,
-    );
-
-    final outer = Paint()
-      ..color = DojoPartnerTheme.primaryOrange;
-
-    canvas.drawCircle(
-      point,
-      14,
-      outer,
-    );
-
-    final inner = Paint()
-      ..color = Colors.white;
-
-    canvas.drawCircle(
-      point,
-      6,
-      inner,
-    );
-  }
-
-  @override
-  bool shouldRepaint(
-    covariant _RoutePainter oldDelegate,
-  ) {
-    return oldDelegate.route.length != route.length ||
-        oldDelegate.tracking != tracking;
   }
 }
 
@@ -1145,10 +1101,12 @@ class _MetricCard extends StatelessWidget {
   const _MetricCard({
     required this.value,
     required this.label,
+    required this.icon,
   });
 
   final String value;
   final String label;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1166,11 +1124,20 @@ class _MetricCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
+          Icon(
+            icon,
+            color: DojoPartnerTheme.primaryOrange,
+            size: 21,
+          ),
+          const SizedBox(height: 7),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(height: 3),
@@ -1208,12 +1175,7 @@ class _WalkNotesCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(
-        14,
-        13,
-        14,
-        12,
-      ),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
@@ -1227,11 +1189,11 @@ class _WalkNotesCard extends StatelessWidget {
           const Text(
             'Walk Notes',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -1279,47 +1241,66 @@ class _NoteControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 8,
+      ),
       decoration: BoxDecoration(
         color: const Color(0xFFF8F8F8),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
         children: [
-          const SizedBox(width: 10),
-          Text(
-            emoji,
-            style: const TextStyle(
-              fontSize: 19,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              '$label $count',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          Row(
+            children: [
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 18),
               ),
-            ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: count > 0 ? onMinus : null,
-            icon: const Icon(
-              Icons.remove,
-              size: 18,
-            ),
-            tooltip: 'Decrease $label',
-            visualDensity: VisualDensity.compact,
-          ),
-          IconButton(
-            onPressed: onAdd,
-            icon: const Icon(
-              Icons.add,
-              size: 18,
-            ),
-            tooltip: 'Add $label',
-            visualDensity: VisualDensity.compact,
+          const SizedBox(height: 7),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: count > 0 ? onMinus : null,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Icon(Icons.remove, size: 18),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onAdd,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: const Icon(Icons.add, size: 18),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1343,12 +1324,8 @@ class _ReturnToCustomerButton extends StatelessWidget {
       height: 58,
       child: ElevatedButton.icon(
         onPressed: enabled ? onPressed : null,
-        icon: const Icon(
-          Icons.location_on_outlined,
-        ),
-        label: const Text(
-          'Return to Customer',
-        ),
+        icon: const Icon(Icons.location_on_outlined),
+        label: const Text('Complete Walk'),
       ),
     );
   }
@@ -1359,6 +1336,7 @@ class _ReturnCustomerPanel extends StatelessWidget {
     required this.dogName,
     required this.checkingLocation,
     required this.sameLocation,
+    required this.locationFailed,
     required this.dogReturned,
     required this.ending,
     required this.onRefreshLocation,
@@ -1369,6 +1347,7 @@ class _ReturnCustomerPanel extends StatelessWidget {
   final String dogName;
   final bool checkingLocation;
   final bool sameLocation;
+  final bool locationFailed;
   final bool dogReturned;
   final bool ending;
 
@@ -1378,6 +1357,20 @@ class _ReturnCustomerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locationMessage = checkingLocation
+        ? 'Checking return location...'
+        : locationFailed
+            ? 'Location could not be verified. Customer OTP is required.'
+            : sameLocation
+                ? 'You are at the customer return location.'
+                : 'Return location differs from the customer location. OTP is required.';
+
+    final locationColor = checkingLocation
+        ? Colors.blueGrey
+        : sameLocation && !locationFailed
+            ? Colors.green
+            : DojoPartnerTheme.primaryOrange;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -1392,9 +1385,9 @@ class _ReturnCustomerPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Return to Customer',
+            'Complete Walk',
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1407,71 +1400,53 @@ class _ReturnCustomerPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          if (checkingLocation)
-            const Row(
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8F8F8),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
               children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: DojoPartnerTheme.primaryOrange,
+                if (checkingLocation)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: DojoPartnerTheme.primaryOrange,
+                    ),
+                  )
+                else
+                  Icon(
+                    sameLocation && !locationFailed
+                        ? Icons.check_circle
+                        : Icons.location_off,
+                    color: locationColor,
                   ),
-                ),
-                SizedBox(width: 10),
-                Text(
-                  'Checking return location...',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    locationMessage,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: locationColor,
+                    ),
                   ),
                 ),
               ],
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: sameLocation
-                    ? const Color(0xFFEAF8EE)
-                    : const Color(0xFFFFF1E8),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    sameLocation
-                        ? Icons.check_circle
-                        : Icons.location_off,
-                    color: sameLocation
-                        ? Colors.green
-                        : DojoPartnerTheme.primaryOrange,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      sameLocation
-                          ? 'You are at the customer return location.'
-                          : 'You are away from the customer location. Customer OTP is required.',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: ending ? null : onRefreshLocation,
-              icon: const Icon(
-                Icons.refresh,
-              ),
-              label: const Text(
-                'Check Location Again',
-              ),
+              onPressed: ending || checkingLocation
+                  ? null
+                  : onRefreshLocation,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Check Location Again'),
             ),
           ),
           const SizedBox(height: 10),
@@ -1480,84 +1455,75 @@ class _ReturnCustomerPanel extends StatelessWidget {
               width: double.infinity,
               height: 52,
               child: ElevatedButton.icon(
-                onPressed: ending ? null : onDogReturned,
-                icon: const Icon(
-                  Icons.pets,
-                ),
-                label: const Text(
-                  'Dog Returned',
-                ),
+                onPressed: ending || checkingLocation
+                    ? null
+                    : onDogReturned,
+                icon: const Icon(Icons.pets),
+                label: const Text('Confirm Dog Returned'),
               ),
             )
-          else
-            Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+          else ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8EE),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
                   ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEAF8EE),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
+                  SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      'Dog returned confirmation recorded.',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
                         color: Colors.green,
                       ),
-                      SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          'Dog Returned successfully.',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (sameLocation && !locationFailed)
+              _SlideToEnd(
+                enabled: !ending && !checkingLocation,
+                onCompleted: onComplete,
+              )
+            else
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: ending || checkingLocation
+                      ? null
+                      : onComplete,
+                  icon: const Icon(Icons.verified_user_outlined),
+                  label: const Text('Verify Customer OTP'),
+                ),
+              ),
+            if (!sameLocation || locationFailed)
+              const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  'OTP verification is required before completing the walk.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: DojoPartnerTheme.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 12),
-                if (sameLocation)
-                  _SlideToEnd(
-                    enabled: !ending,
-                    onCompleted: onComplete,
-                  )
-                else
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: ending ? null : onComplete,
-                      icon: const Icon(
-                        Icons.verified_user_outlined,
-                      ),
-                      label: const Text(
-                        'Verify Customer OTP',
-                      ),
-                    ),
-                  ),
-                if (!sameLocation)
-                  const Padding(
-                    padding: EdgeInsets.only(
-                      top: 10,
-                    ),
-                    child: Text(
-                      'Customer OTP is required because the return location does not match.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: DojoPartnerTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+              ),
+          ],
         ],
       ),
     );
@@ -1582,9 +1548,7 @@ class _SlideToEndState extends State<_SlideToEnd> {
   bool _completed = false;
 
   void _onChanged(double value) {
-    if (!widget.enabled || _completed) {
-      return;
-    }
+    if (!widget.enabled || _completed) return;
 
     final safeValue = value.clamp(0.0, 1.0);
 
@@ -1612,29 +1576,32 @@ class _SlideToEndState extends State<_SlideToEnd> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final containerWidth =
-        MediaQuery.of(context).size.width - 32;
+  void didUpdateWidget(covariant _SlideToEnd oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-    final maxLeft =
-        math.max(0.0, containerWidth - 60);
+    if (!widget.enabled && !_completed && _value != 0) {
+      _value = 0;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final containerWidth = MediaQuery.of(context).size.width - 32;
+    final maxLeft = math.max(0.0, containerWidth - 60);
 
     return GestureDetector(
       onHorizontalDragUpdate: widget.enabled
           ? (details) {
               if (containerWidth <= 0) return;
 
-              final next = _value +
-                  details.delta.dx / containerWidth;
-
-              _onChanged(next);
+              _onChanged(
+                _value + details.delta.dx / containerWidth,
+              );
             }
           : null,
       onHorizontalDragEnd: widget.enabled
           ? (_) {
-              if (_value < 0.92) {
-                _reset();
-              }
+              if (_value < 0.92) _reset();
             }
           : null,
       child: Container(
@@ -1651,9 +1618,7 @@ class _SlideToEndState extends State<_SlideToEnd> {
           children: [
             Center(
               child: AnimatedOpacity(
-                duration: const Duration(
-                  milliseconds: 100,
-                ),
+                duration: const Duration(milliseconds: 100),
                 opacity: _value > 0.25 ? 0 : 1,
                 child: const Text(
                   'Slide to End Walk  →',
