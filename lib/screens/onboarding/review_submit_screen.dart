@@ -13,8 +13,7 @@ class ReviewSubmitScreen extends StatefulWidget {
       _ReviewSubmitScreenState();
 }
 
-class _ReviewSubmitScreenState
-    extends State<ReviewSubmitScreen> {
+class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
   bool _loading = true;
   bool _submitting = false;
   bool _agreed = false;
@@ -28,9 +27,7 @@ class _ReviewSubmitScreenState
   }
 
   Future<void> _loadWalkerData() async {
-    if (mounted) {
-      setState(() => _loading = true);
-    }
+    if (mounted) setState(() => _loading = true);
 
     final user = FirebaseAuth.instance.currentUser;
 
@@ -54,17 +51,11 @@ class _ReviewSubmitScreenState
       });
     } on FirebaseException catch (e) {
       if (!mounted) return;
-
       setState(() => _loading = false);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            e.code == 'permission-denied'
-                ? 'Access denied. Please check Firestore rules.'
-                : 'Unable to load details. Please try again.',
-          ),
-        ),
+      _showMessage(
+        e.code == 'permission-denied'
+            ? 'Access denied. Please check Firestore rules.'
+            : 'Unable to load details. Please try again.',
       );
     } catch (_) {
       if (!mounted) return;
@@ -75,30 +66,30 @@ class _ReviewSubmitScreenState
 
   String _value(String key) {
     final value = _walkerData?[key];
-
     if (value == null || value.toString().trim().isEmpty) {
       return 'Not provided';
     }
-
     return value.toString().trim();
   }
 
-  String _nestedValue(List<String> keys) {
+  dynamic _nested(List<String> keys) {
     dynamic current = _walkerData;
-
     for (final key in keys) {
       if (current is Map) {
         current = current[key];
       } else {
-        return 'Not submitted';
+        return null;
       }
     }
+    return current;
+  }
 
-    if (current == null || current.toString().trim().isEmpty) {
-      return 'Not submitted';
+  String _documentStatus(String key) {
+    final doc = _nested(['kyc', 'documents', key]);
+    if (doc is Map && doc['storagePath'] is String) {
+      return doc['status']?.toString() ?? 'pending';
     }
-
-    return current.toString().trim();
+    return 'not_submitted';
   }
 
   List<String> _zoneNames() {
@@ -106,19 +97,15 @@ class _ReviewSubmitScreenState
 
     if (raw is List) {
       final names = raw
-          .map((item) => item.toString().trim())
-          .where((name) => name.isNotEmpty)
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
           .toSet()
           .toList();
-
       if (names.isNotEmpty) return names;
     }
 
-    final legacyName = _walkerData?['zoneName']?.toString().trim();
-
-    if (legacyName != null && legacyName.isNotEmpty) {
-      return [legacyName];
-    }
+    final legacy = _walkerData?['zoneName']?.toString().trim();
+    if (legacy != null && legacy.isNotEmpty) return [legacy];
 
     return [];
   }
@@ -136,8 +123,8 @@ class _ReviewSubmitScreenState
       case 'pending':
         return 'Pending review';
       case 'not_started':
+      case 'not_submitted':
       case 'not submitted':
-      case 'not provided':
       case '':
         return 'Not submitted';
       default:
@@ -146,29 +133,30 @@ class _ReviewSubmitScreenState
   }
 
   bool _isVerified(String status) {
-    final normalized = status.toLowerCase();
-    return normalized == 'approved' ||
-        normalized == 'verified' ||
-        normalized == 'completed';
+    return ['approved', 'verified', 'completed']
+        .contains(status.toLowerCase());
+  }
+
+  bool _hasDocument(String key) {
+    final doc = _nested(['kyc', 'documents', key]);
+    return doc is Map &&
+        doc['storagePath'] is String &&
+        (doc['storagePath'] as String).isNotEmpty;
   }
 
   Future<void> _submitApplication() async {
     if (!_agreed) {
-      _showMessage(
-        'Please confirm that your information is correct.',
-      );
+      _showMessage('Please confirm that your information is correct.');
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       _showMessage('Session expired. Please log in again.');
       return;
     }
 
     final data = _walkerData;
-
     if (data == null ||
         (data['fullName']?.toString().trim().isEmpty ?? true) ||
         (data['phone']?.toString().trim().isEmpty ?? true) ||
@@ -182,24 +170,39 @@ class _ReviewSubmitScreenState
       return;
     }
 
+    final selfie = _nested(['kyc', 'selfie']);
+    if (selfie is! Map ||
+        selfie['storagePath'] is! String ||
+        (selfie['storagePath'] as String).isEmpty) {
+      _showMessage('Please capture and upload your selfie first.');
+      return;
+    }
+
+    if (!_hasDocument('aadhaar_front') ||
+        !_hasDocument('aadhaar_back') ||
+        !_hasDocument('pan_card')) {
+      _showMessage(
+        'Please upload Aadhaar front, Aadhaar back and PAN card first.',
+      );
+      return;
+    }
+
     setState(() => _submitting = true);
 
     try {
       await FirebaseFirestore.instance
           .collection('walkers')
           .doc(user.uid)
-          .set(
-        {
-          'status': 'under_review',
-          'isActive': false,
-          'isApproved': false,
-          'verificationStatus': 'pending',
-          'applicationSubmittedAt':
-              FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
+          .set({
+        'userId': user.uid,
+        'walkerId': user.uid,
+        'status': 'under_review',
+        'isActive': false,
+        'isApproved': false,
+        'verificationStatus': 'pending',
+        'submittedAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
 
@@ -212,26 +215,22 @@ class _ReviewSubmitScreenState
       );
     } on FirebaseException catch (e) {
       if (!mounted) return;
-
       setState(() => _submitting = false);
-
       _showMessage(
         e.code == 'permission-denied'
-            ? 'Submission denied by Firestore rules. Please check the walker update rules.'
+            ? 'Submission denied. Please check Firestore rules.'
             : 'Submission failed. Please try again.',
       );
     } catch (_) {
       if (!mounted) return;
-
       setState(() => _submitting = false);
       _showMessage('Something went wrong. Please try again.');
     }
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _section({
@@ -253,11 +252,8 @@ class _ReviewSubmitScreenState
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                color: DojoPartnerTheme.primaryOrange,
-                size: 22,
-              ),
+              Icon(icon,
+                  color: DojoPartnerTheme.primaryOrange, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -314,18 +310,16 @@ class _ReviewSubmitScreenState
 
   Widget _verificationRow(String title, String rawStatus) {
     final verified = _isVerified(rawStatus);
-    final status = _statusLabel(rawStatus);
-
+    final submitted = rawStatus.toLowerCase() != 'not_submitted';
     final color = verified
         ? const Color(0xFF23834B)
-        : DojoPartnerTheme.textSecondary;
+        : rawStatus.toLowerCase() == 'rejected'
+            ? Colors.red
+            : DojoPartnerTheme.textSecondary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 13,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
       decoration: BoxDecoration(
         color: verified
             ? const Color(0xFFF0FAF3)
@@ -342,7 +336,9 @@ class _ReviewSubmitScreenState
           Icon(
             verified
                 ? Icons.check_circle_rounded
-                : Icons.hourglass_empty_rounded,
+                : submitted
+                    ? Icons.hourglass_empty_rounded
+                    : Icons.upload_file_outlined,
             size: 21,
             color: color,
           ),
@@ -360,7 +356,7 @@ class _ReviewSubmitScreenState
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              status.toUpperCase(),
+              _statusLabel(rawStatus).toUpperCase(),
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 10,
@@ -406,19 +402,13 @@ class _ReviewSubmitScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: DojoPartnerTheme.textSecondary,
-            ),
+            const Icon(Icons.error_outline_rounded,
+                size: 48, color: DojoPartnerTheme.textSecondary),
             const SizedBox(height: 14),
             const Text(
               'Unable to load your application.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 18),
             ElevatedButton(
@@ -433,6 +423,11 @@ class _ReviewSubmitScreenState
 
   Widget _buildContent() {
     final zones = _zoneNames();
+    final selfieStatus = _nested(['kyc', 'selfie', 'status']);
+    final selfiePath = _nested(['kyc', 'selfie', 'storagePath']);
+    final selfie = selfiePath is String && selfiePath.isNotEmpty
+        ? (selfieStatus?.toString() ?? 'pending')
+        : 'not_submitted';
 
     return Column(
       children: [
@@ -444,11 +439,8 @@ class _ReviewSubmitScreenState
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                 children: [
                   const Center(
-                    child: Icon(
-                      Icons.fact_check_outlined,
-                      size: 44,
-                      color: DojoPartnerTheme.primaryOrange,
-                    ),
+                    child: Icon(Icons.fact_check_outlined,
+                        size: 44, color: DojoPartnerTheme.primaryOrange),
                   ),
                   const SizedBox(height: 12),
                   const Text(
@@ -471,7 +463,6 @@ class _ReviewSubmitScreenState
                     ),
                   ),
                   const SizedBox(height: 24),
-
                   _section(
                     title: 'Personal Details',
                     icon: Icons.person_outline_rounded,
@@ -480,7 +471,6 @@ class _ReviewSubmitScreenState
                       _row('Phone', _value('phone')),
                     ],
                   ),
-
                   _section(
                     title: 'Work Location',
                     icon: Icons.location_on_outlined,
@@ -494,26 +484,26 @@ class _ReviewSubmitScreenState
                       ),
                     ],
                   ),
-
                   _section(
                     title: 'KYC & Verification',
                     icon: Icons.verified_user_outlined,
                     children: [
                       _verificationRow(
-                        'Aadhaar KYC',
-                        _nestedValue(['kyc', 'aadhaar', 'status']),
+                        'Aadhaar Front',
+                        _documentStatus('aadhaar_front'),
                       ),
                       _verificationRow(
-                        'PAN KYC',
-                        _nestedValue(['kyc', 'pan', 'status']),
+                        'Aadhaar Back',
+                        _documentStatus('aadhaar_back'),
                       ),
                       _verificationRow(
-                        'Selfie',
-                        _nestedValue(['kyc', 'selfie', 'status']),
+                        'PAN Card',
+                        _documentStatus('pan_card'),
                       ),
+                      _verificationRow('Selfie', selfie),
                       const SizedBox(height: 4),
                       const Text(
-                        'A pending status means the information has not yet been verified. Required documents may depend on DOJO policy and applicable rules.',
+                        'Documents are submitted for review. A pending status does not mean they are verified.',
                         style: TextStyle(
                           fontSize: 12,
                           height: 1.5,
@@ -522,27 +512,22 @@ class _ReviewSubmitScreenState
                       ),
                     ],
                   ),
-
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF7F0),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFFFDFC4),
-                      ),
+                      border: Border.all(color: const Color(0xFFFFDFC4)),
                     ),
                     child: const Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          color: DojoPartnerTheme.primaryOrange,
-                        ),
+                        Icon(Icons.info_outline_rounded,
+                            color: DojoPartnerTheme.primaryOrange),
                         SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            'After submission, DOJO will review your application. You cannot accept walks until your Partner account is approved and activated.',
+                            'DOJO will review your application. You cannot accept walks until your Partner account is approved and activated.',
                             style: TextStyle(
                               fontSize: 13,
                               height: 1.5,
@@ -553,9 +538,7 @@ class _ReviewSubmitScreenState
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 16),
-
                   InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: _submitting
@@ -606,15 +589,12 @@ class _ReviewSubmitScreenState
             ),
           ),
         ),
-
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
           decoration: const BoxDecoration(
             color: Colors.white,
-            border: Border(
-              top: BorderSide(color: Color(0xFFE8E8E8)),
-            ),
+            border: Border(top: BorderSide(color: Color(0xFFE8E8E8))),
           ),
           child: Center(
             child: ConstrainedBox(
@@ -681,11 +661,8 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                       color: const Color(0xFFEAF8EE),
                       borderRadius: BorderRadius.circular(44),
                     ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      size: 48,
-                      color: Color(0xFF23834B),
-                    ),
+                    child: const Icon(Icons.check_rounded,
+                        size: 48, color: Color(0xFF23834B)),
                   ),
                   const SizedBox(height: 24),
                   const Text(
@@ -714,9 +691,7 @@ class ApplicationSubmittedScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: const Color(0xFFE5E5E5),
-                      ),
+                      border: Border.all(color: const Color(0xFFE5E5E5)),
                     ),
                     child: const Column(
                       children: [
