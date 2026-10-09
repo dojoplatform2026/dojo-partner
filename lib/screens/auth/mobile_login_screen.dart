@@ -24,11 +24,11 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   }
 
   Future<void> _continue() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     final phone = '+91${_phoneController.text.trim()}';
+
+    FocusScope.of(context).unfocus();
 
     setState(() {
       _isLoading = true;
@@ -37,26 +37,29 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phone,
+        timeout: const Duration(seconds: 60),
 
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
-            await FirebaseAuth.instance.signInWithCredential(
-              credential,
-            );
+            await FirebaseAuth.instance.signInWithCredential(credential);
 
             if (!mounted) return;
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => OtpScreen(
-                  phoneNumber: phone,
-                  verificationId: '',
-                ),
+            setState(() {
+              _isLoading = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Mobile number verified successfully.'),
               ),
             );
           } on FirebaseAuthException catch (e) {
             if (!mounted) return;
+
+            setState(() {
+              _isLoading = false;
+            });
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -75,10 +78,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
             _isLoading = false;
           });
 
-          String message = 'Unable to send OTP.';
+          String message = 'Unable to send OTP. Please try again.';
 
           if (e.code == 'invalid-phone-number') {
-            message = 'Invalid mobile number.';
+            message = 'Enter a valid mobile number.';
           } else if (e.code == 'too-many-requests') {
             message = 'Too many attempts. Please try again later.';
           } else if (e.message != null) {
@@ -86,9 +89,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-            ),
+            SnackBar(content: Text(message)),
           );
         },
 
@@ -111,7 +112,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
         },
 
         codeAutoRetrievalTimeout: (String verificationId) {
-          // OTP timeout is handled by Firebase.
+          // Firebase OTP auto-retrieval timeout.
         },
       );
     } on FirebaseAuthException catch (e) {
@@ -123,12 +124,10 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.message ?? 'Something went wrong.',
-          ),
+          content: Text(e.message ?? 'Something went wrong.'),
         ),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
 
       setState(() {
@@ -137,9 +136,7 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Something went wrong. Please try again.',
-          ),
+          content: Text('Something went wrong. Please try again.'),
         ),
       );
     }
@@ -148,144 +145,275 @@ class _MobileLoginScreenState extends State<MobileLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Spacer(),
-
-                const Text(
-                  'DOJO',
-                  style: TextStyle(
-                    color: DojoPartnerTheme.primaryOrange,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
                 ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Walker Partner',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: DojoPartnerTheme.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 48),
-
-                const Text(
-                  'Welcome back 👋',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    color: DojoPartnerTheme.textPrimary,
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                const Text(
-                  'Enter your mobile number to continue',
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: DojoPartnerTheme.textSecondary,
-                  ),
-                ),
-
-                const SizedBox(height: 28),
-
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 10,
-                  enabled: !_isLoading,
-                  decoration: const InputDecoration(
-                    counterText: '',
-                    prefixText: '+91  ',
-                    prefixStyle: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: DojoPartnerTheme.textPrimary,
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: 380,
                     ),
-                    hintText: 'Mobile Number',
-                  ),
-                  validator: (value) {
-                    final phone = value?.trim() ?? '';
-
-                    if (phone.isEmpty) {
-                      return 'Enter your mobile number';
-                    }
-
-                    if (!RegExp(r'^[6-9][0-9]{9}$')
-                        .hasMatch(phone)) {
-                      return 'Enter a valid 10-digit mobile number';
-                    }
-
-                    return null;
-                  },
-                ),
-
-                const SizedBox(height: 18),
-
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _continue,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Centered DOJO Partner branding.
+                          Column(
+                            children: [
+                              Container(
+                                width: 66,
+                                height: 66,
+                                decoration: BoxDecoration(
+                                  color: DojoPartnerTheme.primaryOrange,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: const Icon(
+                                  Icons.pets_rounded,
+                                  color: Colors.white,
+                                  size: 35,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              const Text(
+                                'DOJO',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: DojoPartnerTheme.primaryOrange,
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              const Text(
+                                'PARTNER',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: DojoPartnerTheme.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 4,
+                                ),
+                              ),
+                            ],
                           ),
-                        )
-                      : const Text('Send OTP'),
-                ),
 
-                const SizedBox(height: 24),
+                          const SizedBox(height: 42),
 
-                Center(
-                  child: RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: DojoPartnerTheme.textSecondary,
+                          const Text(
+                            'Welcome to DOJO 👋',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w800,
+                              color: DojoPartnerTheme.textPrimary,
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          const Text(
+                            'Your dog-walking journey starts here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.5,
+                              color: DojoPartnerTheme.textSecondary,
+                            ),
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          const Text(
+                            'Mobile number',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: DojoPartnerTheme.textPrimary,
+                            ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          TextFormField(
+                            controller: _phoneController,
+                            keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            enabled: !_isLoading,
+                            textInputAction: TextInputAction.done,
+                            decoration: InputDecoration(
+                              counterText: '',
+                              hintText: 'Enter mobile number',
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.only(left: 14, right: 10),
+                                child: Center(
+                                  widthFactor: 1,
+                                  child: Text(
+                                    '+91',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: DojoPartnerTheme.textPrimary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              prefixIconConstraints: const BoxConstraints(
+                                minWidth: 68,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFFFAFAFA),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 18,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E5E5),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFFE5E5E5),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: DojoPartnerTheme.primaryOrange,
+                                  width: 1.5,
+                                ),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                borderSide: const BorderSide(
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                            validator: (value) {
+                              final phone = value?.trim() ?? '';
+
+                              if (phone.isEmpty) {
+                                return 'Enter your mobile number';
+                              }
+
+                              if (!RegExp(r'^[6-9][0-9]{9}$')
+                                  .hasMatch(phone)) {
+                                return 'Enter a valid 10-digit mobile number';
+                              }
+
+                              return null;
+                            },
+                            onFieldSubmitted: (_) {
+                              if (!_isLoading) _continue();
+                            },
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          const Text(
+                            "We'll send an OTP to verify your number.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: DojoPartnerTheme.textSecondary,
+                            ),
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          SizedBox(
+                            height: 54,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _continue,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    DojoPartnerTheme.primaryOrange,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor:
+                                    DojoPartnerTheme.primaryOrange
+                                        .withValues(alpha: 0.6),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 23,
+                                      height: 23,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Send OTP',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                            ),
+                          ),
+
+                          const SizedBox(height: 28),
+
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              const Text(
+                                'New to DOJO? ',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: DojoPartnerTheme.textSecondary,
+                                ),
+                              ),
+                              Text(
+                                'Join as a Partner',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: DojoPartnerTheme.primaryOrange,
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 36),
+
+                          const Text(
+                            'Terms  •  Privacy  •  Help',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: DojoPartnerTheme.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                      children: [
-                        TextSpan(text: 'New to DOJO? '),
-                        TextSpan(
-                          text: 'Join as a Walker',
-                          style: TextStyle(
-                            color: DojoPartnerTheme.primaryOrange,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
-
-                const Spacer(),
-
-                const Center(
-                  child: Text(
-                    'Terms • Privacy • Help',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: DojoPartnerTheme.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
