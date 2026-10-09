@@ -1,10 +1,11 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../theme.dart';
 import '../home/partner_home_screen.dart';
-import '../onboarding/personal_details_screen.dart';
+import '../onboarding/work_zone_screen.dart';
 
 class AccountCheckScreen extends StatefulWidget {
   const AccountCheckScreen({
@@ -48,21 +49,20 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         );
       }
 
-      final uid = user.uid;
-
-      final walkerDoc = await FirebaseFirestore.instance
+      final walkerRef = FirebaseFirestore.instance
           .collection('walkers')
-          .doc(uid)
-          .get();
+          .doc(user.uid);
+
+      final walkerDoc = await walkerRef.get();
 
       if (!mounted) return;
 
-      // New Partner: start onboarding.
+      // New Partner: begin with State, City, Area and Zones.
       if (!walkerDoc.exists) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => const PersonalDetailsScreen(),
+            builder: (_) => const WorkZoneScreen(),
           ),
         );
         return;
@@ -74,7 +74,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
       final isActive = data['isActive'] == true;
       final isApproved = data['isApproved'] == true;
 
-      // Only approved and active Partners can enter the home screen.
+      // Only approved and active Partners can enter Home.
       if (status == 'approved' && isActive && isApproved) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -93,23 +93,18 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         case 'under_review':
           _message = 'Your application is under review.';
           break;
-
         case 'correction_required':
           _message = 'Some information needs correction.';
           break;
-
         case 'suspended':
           _message = 'Your DOJO Partner account is suspended.';
           break;
-
         case 'rejected':
           _message = 'Your Partner application was not approved.';
           break;
-
         case 'left':
           _message = 'This Partner account is inactive.';
           break;
-
         default:
           _message = 'Your account is being checked by DOJO.';
       }
@@ -167,7 +162,6 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // DOJO PARTNER branding.
                         Column(
                           children: [
                             Container(
@@ -207,9 +201,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 44),
-
                         Container(
                           padding: const EdgeInsets.all(28),
                           decoration: BoxDecoration(
@@ -234,8 +226,8 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                 Container(
                                   width: 58,
                                   height: 58,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF3E8),
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFFF3E8),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
@@ -246,9 +238,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                     color: DojoPartnerTheme.primaryOrange,
                                   ),
                                 ),
-
                               const SizedBox(height: 24),
-
                               Text(
                                 _isChecking
                                     ? 'Verifying your account'
@@ -262,9 +252,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                   color: DojoPartnerTheme.textPrimary,
                                 ),
                               ),
-
                               const SizedBox(height: 12),
-
                               Text(
                                 _message,
                                 textAlign: TextAlign.center,
@@ -274,7 +262,6 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                   color: DojoPartnerTheme.textSecondary,
                                 ),
                               ),
-
                               if (_isChecking) ...[
                                 const SizedBox(height: 12),
                                 const Text(
@@ -286,7 +273,6 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                                   ),
                                 ),
                               ],
-
                               if (_hasError) ...[
                                 const SizedBox(height: 24),
                                 SizedBox(
@@ -317,9 +303,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                             ],
                           ),
                         ),
-
                         const SizedBox(height: 32),
-
                         const Text(
                           'Your partner journey starts here.',
                           textAlign: TextAlign.center,
@@ -328,9 +312,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
                             color: DojoPartnerTheme.textSecondary,
                           ),
                         ),
-
                         const SizedBox(height: 16),
-
                         const Text(
                           'Terms  •  Privacy  •  Help',
                           textAlign: TextAlign.center,
