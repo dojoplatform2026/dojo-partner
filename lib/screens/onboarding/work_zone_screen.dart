@@ -1,3 +1,4 @@
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -20,7 +21,6 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
   String? _selectedArea;
 
   final Set<String> _selectedZoneIds = {};
-
   bool _isSaving = false;
 
   CollectionReference<Map<String, dynamic>> get _zones =>
@@ -32,39 +32,34 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
         .snapshots();
   }
 
+  String _field(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    String key,
+  ) {
+    return doc.data()[key]?.toString().trim() ?? '';
+  }
+
   List<String> _uniqueValues(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
     String field,
-    Map<String, dynamic> Function(
-      QueryDocumentSnapshot<Map<String, dynamic>>,
-    ) filter,
+    bool Function(QueryDocumentSnapshot<Map<String, dynamic>>) matches,
   ) {
     final values = <String>{};
 
     for (final doc in docs) {
-      final data = doc.data();
+      if (!matches(doc)) continue;
 
-      if (filter(doc).isEmpty) continue;
-
-      final value = data[field]?.toString().trim() ?? '';
-
-      if (value.isNotEmpty) {
-        values.add(value);
-      }
+      final value = _field(doc, field);
+      if (value.isNotEmpty) values.add(value);
     }
 
-    final result = values.toList()..sort();
-    return result;
+    return values.toList()..sort();
   }
 
   List<String> _states(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
-    return _uniqueValues(
-      docs,
-      'state',
-      (_) => {'valid': true},
-    );
+    return _uniqueValues(docs, 'state', (_) => true);
   }
 
   List<String> _cities(
@@ -73,9 +68,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
     return _uniqueValues(
       docs,
       'city',
-      (doc) => {
-        'valid': doc.data()['state']?.toString() == _selectedState,
-      },
+      (doc) => _field(doc, 'state') == _selectedState,
     );
   }
 
@@ -85,22 +78,18 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
     return _uniqueValues(
       docs,
       'area',
-      (doc) => {
-        'valid':
-            doc.data()['state']?.toString() == _selectedState &&
-            doc.data()['city']?.toString() == _selectedCity,
-      },
+      (doc) =>
+          _field(doc, 'state') == _selectedState &&
+          _field(doc, 'city') == _selectedCity,
     );
   }
 
   bool _matchesCurrentArea(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data();
-
-    return data['state']?.toString() == _selectedState &&
-        data['city']?.toString() == _selectedCity &&
-        data['area']?.toString() == _selectedArea;
+    return _field(doc, 'state') == _selectedState &&
+        _field(doc, 'city') == _selectedCity &&
+        _field(doc, 'area') == _selectedArea;
   }
 
   Future<void> _continue(
@@ -119,7 +108,6 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
     }
 
     final user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       _showMessage('Login session expired. Please log in again.');
       return;
@@ -138,16 +126,13 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _isSaving = true);
 
     try {
       final zoneIds = selectedDocs.map((doc) => doc.id).toList();
-
-      final zoneNames = selectedDocs.map((doc) {
-        return doc.data()['name']?.toString() ?? '';
-      }).toList();
+      final zoneNames = selectedDocs
+          .map((doc) => _field(doc, 'name'))
+          .toList();
 
       await _firestore.collection('walkers').doc(user.uid).set(
         {
@@ -183,11 +168,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
       if (!mounted) return;
       _showMessage('Something went wrong. Please try again.');
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -228,7 +209,12 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
     required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
+    bool enabled = true,
   }) {
+    // Avoid passing a stale selection to the dropdown.
+    final initialValue =
+        value != null && items.contains(value) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,7 +228,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: initialValue,
           isExpanded: true,
           decoration: InputDecoration(
             hintText: hint,
@@ -279,7 +265,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
                 ),
               )
               .toList(),
-          onChanged: _isSaving ? null : onChanged,
+          onChanged: enabled && !_isSaving ? onChanged : null,
         ),
       ],
     );
@@ -288,8 +274,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
   Widget _zoneTile(
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data();
-    final name = data['name']?.toString() ?? 'Unnamed Zone';
+    final name = _field(doc, 'name');
     final selected = _selectedZoneIds.contains(doc.id);
 
     return InkWell(
@@ -306,11 +291,10 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
               });
             },
       child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(15),
         decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFFFFF5EC)
-              : Colors.white,
+          color: selected ? const Color(0xFFFFF5EC) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: selected
@@ -340,7 +324,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
             const SizedBox(width: 13),
             Expanded(
               child: Text(
-                name,
+                name.isEmpty ? 'Unnamed Zone' : name,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -368,6 +352,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text('Work Location'),
+        centerTitle: true,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -424,11 +409,11 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
             final availableZones = docs
                 .where(_matchesCurrentArea)
                 .toList()
-              ..sort((a, b) {
-                final aName = a.data()['name']?.toString() ?? '';
-                final bName = b.data()['name']?.toString() ?? '';
-                return aName.compareTo(bName);
-              });
+              ..sort((a, b) => _field(a, 'name').compareTo(_field(b, 'name')));
+
+            // Clear selections if admin disables or removes a selected zone.
+            final availableIds = availableZones.map((doc) => doc.id).toSet();
+            _selectedZoneIds.removeWhere((id) => !availableIds.contains(id));
 
             return Column(
               children: [
@@ -491,15 +476,14 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
                             hint: 'Select city',
                             value: _selectedCity,
                             items: cities,
-                            onChanged: _selectedState == null
-                                ? (_) {}
-                                : (value) {
-                                    setState(() {
-                                      _selectedCity = value;
-                                      _selectedArea = null;
-                                      _selectedZoneIds.clear();
-                                    });
-                                  },
+                            enabled: _selectedState != null,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCity = value;
+                                _selectedArea = null;
+                                _selectedZoneIds.clear();
+                              });
+                            },
                           ),
                           const SizedBox(height: 18),
                           _dropdown(
@@ -507,14 +491,13 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
                             hint: 'Select area',
                             value: _selectedArea,
                             items: areas,
-                            onChanged: _selectedCity == null
-                                ? (_) {}
-                                : (value) {
-                                    setState(() {
-                                      _selectedArea = value;
-                                      _selectedZoneIds.clear();
-                                    });
-                                  },
+                            enabled: _selectedCity != null,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedArea = value;
+                                _selectedZoneIds.clear();
+                              });
+                            },
                           ),
                           const SizedBox(height: 28),
                           _sectionTitle(
@@ -588,9 +571,7 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
                         width: double.infinity,
                         height: 54,
                         child: ElevatedButton(
-                          onPressed: _isSaving
-                              ? null
-                              : () => _continue(docs),
+                          onPressed: _isSaving ? null : () => _continue(docs),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: DojoPartnerTheme.primaryOrange,
                             foregroundColor: Colors.white,
