@@ -20,6 +20,8 @@ class AccountCheckScreen extends StatefulWidget {
 
 class _AccountCheckScreenState extends State<AccountCheckScreen> {
   String _message = 'Checking your DOJO Partner account...';
+  bool _isChecking = true;
+  bool _hasError = false;
 
   @override
   void initState() {
@@ -28,13 +30,21 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
   }
 
   Future<void> _checkAccount() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isChecking = true;
+      _hasError = false;
+      _message = 'Checking your DOJO Partner account...';
+    });
+
     try {
       final user = FirebaseAuth.instance.currentUser;
 
       if (user == null) {
         throw FirebaseAuthException(
           code: 'not-signed-in',
-          message: 'Your login session could not be found.',
+          message: 'Your login session has expired. Please log in again.',
         );
       }
 
@@ -47,7 +57,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
 
       if (!mounted) return;
 
-      // New Walker
+      // New Partner: start onboarding.
       if (!walkerDoc.exists) {
         Navigator.pushReplacement(
           context,
@@ -64,7 +74,7 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
       final isActive = data['isActive'] == true;
       final isApproved = data['isApproved'] == true;
 
-      // Approved Partner
+      // Only approved and active Partners can enter the home screen.
       if (status == 'approved' && isActive && isApproved) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -76,65 +86,72 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
         return;
       }
 
-      // Under Review
-      if (status == 'pending' || status == 'under_review') {
-        setState(() {
-          _message = 'Your application is under review.';
-        });
-        return;
-      }
+      if (!mounted) return;
 
-      // Correction Required
-      if (status == 'correction_required') {
-        setState(() {
-          _message = 'Some information needs correction.';
-        });
-        return;
-      }
+      String message;
+      IconData statusIcon;
 
-      // Suspended
-      if (status == 'suspended') {
-        setState(() {
-          _message = 'Your DOJO Partner account is suspended.';
-        });
-        return;
-      }
+      switch (status) {
+        case 'pending':
+        case 'under_review':
+          message = 'Your application is under review.';
+          statusIcon = Icons.hourglass_top_rounded;
+          break;
 
-      // Rejected
-      if (status == 'rejected') {
-        setState(() {
-          _message = 'Your Partner application was not approved.';
-        });
-        return;
-      }
+        case 'correction_required':
+          message = 'Some information needs correction.';
+          statusIcon = Icons.edit_note_rounded;
+          break;
 
-      // Left / Inactive
-      if (status == 'left') {
-        setState(() {
-          _message = 'This Partner account is inactive.';
-        });
-        return;
+        case 'suspended':
+          message = 'Your DOJO Partner account is suspended.';
+          statusIcon = Icons.pause_circle_outline_rounded;
+          break;
+
+        case 'rejected':
+          message = 'Your Partner application was not approved.';
+          statusIcon = Icons.info_outline_rounded;
+          break;
+
+        case 'left':
+          message = 'This Partner account is inactive.';
+          statusIcon = Icons.person_off_outlined;
+          break;
+
+        default:
+          message = 'Your account is being checked by DOJO.';
+          statusIcon = Icons.manage_search_rounded;
       }
 
       setState(() {
-        _message = 'Your account is being checked by DOJO.';
+        _isChecking = false;
+        _hasError = false;
+        _message = message;
       });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _message = e.message ?? 'Unable to check your account.';
+        _isChecking = false;
+        _hasError = true;
+        _message = e.message ?? 'Unable to verify your login session.';
       });
     } on FirebaseException catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _message = e.message ?? 'Unable to connect to DOJO.';
+        _isChecking = false;
+        _hasError = true;
+        _message = e.code == 'permission-denied'
+            ? 'Access denied. Please check your Firestore security rules.'
+            : 'Unable to connect to DOJO. Please try again.';
       });
     } catch (_) {
       if (!mounted) return;
 
       setState(() {
+        _isChecking = false;
+        _hasError = true;
         _message = 'Something went wrong. Please try again.';
       });
     }
@@ -143,47 +160,208 @@ class _AccountCheckScreenState extends State<AccountCheckScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'DOJO',
-                  style: TextStyle(
-                    color: DojoPartnerTheme.primaryOrange,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Centered DOJO Partner branding.
+                        Column(
+                          children: [
+                            Container(
+                              width: 70,
+                              height: 70,
+                              decoration: BoxDecoration(
+                                color: DojoPartnerTheme.primaryOrange,
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: const Icon(
+                                Icons.pets_rounded,
+                                color: Colors.white,
+                                size: 38,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'DOJO',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: DojoPartnerTheme.primaryOrange,
+                                fontSize: 36,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            const Text(
+                              'PARTNER',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 4,
+                                color: DojoPartnerTheme.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 44),
+
+                        Container(
+                          padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFAFAFA),
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: const Color(0xFFEEEEEE),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              if (_isChecking)
+                                const SizedBox(
+                                  width: 44,
+                                  height: 44,
+                                  child: CircularProgressIndicator(
+                                    color:
+                                        DojoPartnerTheme.primaryOrange,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              else
+                                Container(
+                                  width: 58,
+                                  height: 58,
+                                  decoration: BoxDecoration(
+                                    color: _hasError
+                                        ? const Color(0xFFFFF0E5)
+                                        : const Color(0xFFFFF3E8),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    _hasError
+                                        ? Icons.wifi_off_rounded
+                                        : Icons.hourglass_top_rounded,
+                                    size: 30,
+                                    color:
+                                        DojoPartnerTheme.primaryOrange,
+                                  ),
+                                ),
+
+                              const SizedBox(height: 24),
+
+                              Text(
+                                _isChecking
+                                    ? 'Verifying your account'
+                                    : _hasError
+                                        ? 'Unable to check account'
+                                        : 'Application status',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w800,
+                                  color:
+                                      DojoPartnerTheme.textPrimary,
+                                ),
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              Text(
+                                _message,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  height: 1.6,
+                                  color:
+                                      DojoPartnerTheme.textSecondary,
+                                ),
+                              ),
+
+                              if (_isChecking) ...[
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Please wait a moment.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: DojoPartnerTheme.textSecondary,
+                                  ),
+                                ),
+                              ],
+
+                              if (_hasError) ...[
+                                const SizedBox(height: 24),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    onPressed: _checkAccount,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          DojoPartnerTheme.primaryOrange,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(13),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Try Again',
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 32),
+
+                        const Text(
+                          'Your partner journey starts here.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: DojoPartnerTheme.textSecondary,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        const Text(
+                          'Terms  •  Privacy  •  Help',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: DojoPartnerTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Text(
-                  'DOJO Partner',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: DojoPartnerTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                const CircularProgressIndicator(
-                  color: DojoPartnerTheme.primaryOrange,
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  _message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: DojoPartnerTheme.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
