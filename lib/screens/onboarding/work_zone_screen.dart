@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -23,13 +22,12 @@ class _WorkZoneScreenState extends State<WorkZoneScreen> {
   final Set<String> _selectedZoneIds = {};
   bool _isSaving = false;
 
+  // Only change: use the existing "zones" collection.
   CollectionReference<Map<String, dynamic>> get _zones =>
-      _firestore.collection('service_zones');
+      _firestore.collection('zones');
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _locationsStream() {
-    return _zones
-        .where('isActive', isEqualTo: true)
-        .snapshots();
+    return _zones.where('isActive', isEqualTo: true).snapshots();
   }
 
   String _field(
